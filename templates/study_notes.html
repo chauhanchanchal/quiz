@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<nav class="navbar">
+  <div class="nav-logo">
+    <div class="logo-icon">🎯</div>
+    <span class="logo-text">Shared Notes</span>
+  </div>
+
+  <div class="nav-right">
+    <a href="/{{ user.role }}" class="btn-nav">← Dashboard</a>
+    <a href="/leaderboard" class="btn-nav">🏆 Leaderboard</a>
+    <a href="/logout" class="btn-nav">Logout</a>
+  </div>
+</nav>
+
+<div class="notes-content">
+
+  <h1 class="page-title">Notes & Announcements</h1>
+  <p class="page-subtitle">Share information with students or mentors</p>
+
+  <!-- Create Note Form -->
+  <div class="quiz-card" style="margin-bottom: 30px;">
+    <h2 class="section-heading" style="margin-top: 0;">Create a Note</h2>
+    <form method="POST" action="/notes">
+      <div class="form-group">
+        <label class="form-label">Your Message</label>
+        <textarea name="note" class="form-input" placeholder="Write your message here..." rows="4" required></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Visibility</label>
+          <select name="visibility" id="visibilitySelect" class="form-select" onchange="toggleTargetSelect()">
+            <option value="public">🌍 Public (Everyone)</option>
+            {% if user.role == 'student' %}
+            <option value="to_mentor">🔑 To Mentor</option>
+            {% else %}
+            <option value="private_student">👤 Private to Student</option>
+            <option value="class">📣 To Class</option>
+            {% endif %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        {% if user.role == 'mentor' %}
+        <div class="form-group hidden" id="targetStudentGroup">
+          <label class="form-label">Select Student</label>
+          <select name="target_id" id="targetIdRef" class="form-select">
+            {% for s in students %}
+            <option value="{{ s.ku_id }}">{{ s.name }} ({{ s.ku_id }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group hidden" id="targetClassGroup">
+          <label class="form-label">Select Class</label>
+          <select name="class_target" id="targetClassRef" class="form-select">
+            <option value="AIML DA-A">AIML DA-A</option>
+            <option value="AIML DA-B">AIML DA-B</option>
+            <option value="GENAI-A">GENAI-A</option>
+            <option value="GENAI-B">GENAI-B</option>
+            <option value="CYBER">CYBER</option>
+          </select>
+        </div>
+        {% elif user.role == 'student' %}
+        <input type="hidden" name="target_id" value="mentor">
+        {% endif %}
+      </div>
+
+      <button class="btn btn-primary" style="margin-top: 10px;">Post Note</button>
+    </form>
+  </div>
+
+  <h2 class="section-heading">Recent Notes</h2>
+
+  {% if notes %}
+  {% for n in notes %}
+  <div class="note-card">
+    <div class="note-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+      <div>
+        <span style="font-weight: 700; font-size: 14px; color: var(--accent);">{{ n.author_name or 'System' }}</span>
+        {% if n.author_role %}
+        <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; margin-left: 4px;">({{ n.author_role }})</span>
+        {% endif %}
+      </div>
+      
+      {% if n.visibility == 'public' %}
+      <span class="badge-type" style="background: rgba(74, 222, 128, 0.1); color: #4ade80;">🌍 Public</span>
+      {% elif n.visibility == 'to_mentor' %}
+      <span class="badge-type" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">🔒 To Mentor</span>
+      {% elif n.visibility == 'private_student' %}
+      <span class="badge-type" style="background: rgba(167, 139, 250, 0.1); color: #a78bfa;">👤 Private</span>
+      {% elif n.visibility == 'class' %}
+      <span class="badge-type" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">📣 Class</span>
+      {% endif %}
+    </div>
+
+    <p class="note-text" style="color: var(--text-primary); line-height: 1.6;">{{ n.text }}</p>
+
+    {% if n.target_name and n.visibility != 'public' %}
+    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-secondary);">
+      Target: <span style="font-weight: 600;">{{ n.target_name }}</span>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="note-card" style="text-align: center; padding: 40px;">
+    <p style="color: var(--text-secondary);">No relevant notes found for you.</p>
+  </div>
+  {% endif %}
+
+</div>
+
+<script>
+  function toggleTargetSelect() {
+    const visibilitySelect = document.getElementById('visibilitySelect');
+    const studentGroup = document.getElementById('targetStudentGroup');
+    const classGroup = document.getElementById('targetClassGroup');
+    
+    // Reset inputs
+    if(studentGroup) studentGroup.classList.add('hidden');
+    if(classGroup) classGroup.classList.add('hidden');
+    
+    if (visibilitySelect.value === 'private_student') {
+      if(studentGroup) {
+        studentGroup.classList.remove('hidden');
+        document.getElementById('targetIdRef').name = "target_id";
+      }
+    } else if (visibilitySelect.value === 'class') {
+      if(classGroup) {
+        classGroup.classList.remove('hidden');
+        document.getElementById('targetClassRef').name = "target_id"; // Same name for backend
+      }
+    }
+  }
+</script>
+
+{% endblock %}

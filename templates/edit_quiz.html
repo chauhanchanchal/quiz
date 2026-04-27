@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block content %}
+
+<nav class="navbar">
+  <div class="nav-logo">
+    <div class="logo-icon">🎯</div>
+    <span class="logo-text">Quiz Generator</span>
+  </div>
+  <div class="nav-right">
+    <a href="/mentor" class="btn-nav">← Dashboard</a>
+    <a href="/logout" class="btn-nav">Logout</a>
+  </div>
+</nav>
+
+<div class="dashboard-content">
+  <h1 class="page-title">✏️ Edit Quiz</h1>
+  <p class="page-subtitle">Update your quiz details and questions</p>
+
+  <form method="POST" id="editQuizForm" onsubmit="return prepareEditSubmit()">
+
+    <div class="quiz-card" style="margin-bottom: 20px;">
+      <h2 class="section-heading" style="margin-top:0;">Quiz Details</h2>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Quiz Name</label>
+          <input name="title" class="form-input" value="{{ quiz.title }}" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subject</label>
+          <input name="subject" class="form-input" value="{{ quiz.subject }}">
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select name="type" id="editType" class="form-select">
+            {% for t in ["MCQ","Rapid Fire","Fill in the Blank","Coding"] %}
+            <option value="{{ t }}" {{ 'selected' if quiz.type == t else '' }}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Assign to Class</label>
+          <select name="class" class="form-select">
+            {% for c in ["All","AIML DA-A","AIML DA-B","GENAI-A","GENAI-B","CYBER"] %}
+            <option value="{{ c }}" {{ 'selected' if quiz.class == c else '' }}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">📅 Open At <span class="label-hint">(optional)</span></label>
+          <input type="datetime-local" name="open_at" class="form-input" value="{{ quiz.open_at or '' }}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">📅 Close At <span class="label-hint">(optional)</span></label>
+          <input type="datetime-local" name="close_at" class="form-input" value="{{ quiz.close_at or '' }}">
+        </div>
+      </div>
+
+      <!-- Quiz Settings -->
+      <div class="settings-group" style="margin-top: 16px;">
+        <div class="settings-title">⚙️ Quiz Settings</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">🔒 Max Attempts <span class="label-hint">(0 = unlimited)</span></label>
+            <input type="number" name="max_attempts" class="form-input" value="{{ quiz.max_attempts or 0 }}" min="0" max="100">
+          </div>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 8px; justify-content: center; padding-top: 10px;">
+            <label class="checkbox-label">
+              <input type="checkbox" name="shuffle_questions" {{ 'checked' if quiz.shuffle_questions else '' }}> 🔀 Shuffle Questions
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="shuffle_options" {{ 'checked' if quiz.shuffle_options else '' }}> 🔀 Shuffle Options
+            </label>
+            <label class="checkbox-label" style="color: #ef4444; font-weight: 600;">
+              <input type="checkbox" name="rapid_fire" {{ 'checked' if quiz.rapid_fire else '' }}> ⏱️ Rapid Fire (10s/Q)
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-heading">Questions</h2>
+    <div id="editQuestionsContainer"></div>
+    <input type="hidden" name="questions_json" id="editQuestionsJson">
+
+    <div class="btn-row" style="margin-top: 20px;">
+      <button type="button" class="btn btn-add" onclick="addEditQuestion()">＋ Add Question</button>
+      <button type="submit" class="btn btn-primary btn-submit">💾 Save Changes</button>
+    </div>
+
+  </form>
+</div>
+
+<script>
+const existingQuestions = {{ quiz.questions | tojson }};
+const quizType = "{{ quiz.type }}";
+let editQCount = 0;
+
+document.addEventListener('DOMContentLoaded', () => {
+  existingQuestions.forEach(q => addEditQuestion(q));
+});
+
+function addEditQuestion(existing = null) {
+  editQCount++;
+  const container = document.getElementById('editQuestionsContainer');
+  const type = document.getElementById('editType').value;
+  const q = existing || {};
+  let optionsHTML = '';
+
+  if (type === 'MCQ') {
+    const opts = q.options || ['', '', '', ''];
+    const labels = ['A','B','C','D'];
+    optionsHTML = `<div class="options-grid">` + labels.map((l, i) => `
+      <div class="form-group">
+        <label class="form-label">Option ${l}</label>
+        <input type="text" class="form-input opt-input" data-opt="${l}" value="${opts[i] || ''}" placeholder="Option ${l}">
+      </div>`).join('') + `</div>
+      <div class="form-group">
+        <label class="form-label">Correct Answer (full text)</label>
+        <input type="text" class="form-input correct-answer-text" value="${q.answer || ''}" placeholder="Paste the correct option text here">
+      </div>`;
+  } else {
+    optionsHTML = `<div class="form-group">
+      <label class="form-label">Answer</label>
+      <input type="text" class="form-input correct-answer-text" value="${q.answer || ''}" placeholder="Correct answer">
+    </div>`;
+  }
+
+  const div = document.createElement('div');
+  div.className = 'question-block';
+  div.id = `eq-${editQCount}`;
+  div.innerHTML = `
+    <div class="question-header">
+      <span class="question-number">Question ${editQCount}</span>
+      <button type="button" class="btn-remove" onclick="this.closest('.question-block').remove(); renumberEdit()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Question</label>
+      <input type="text" class="form-input question-text" value="${(q.question || '').replace(/"/g,'&quot;')}" placeholder="Question text">
+    </div>
+    ${optionsHTML}`;
+  container.appendChild(div);
+}
+
+function renumberEdit() {
+  document.querySelectorAll('#editQuestionsContainer .question-block').forEach((b, i) => {
+    b.querySelector('.question-number').textContent = `Question ${i+1}`;
+  });
+}
+
+function prepareEditSubmit() {
+  const type = document.getElementById('editType').value;
+  const blocks = document.querySelectorAll('#editQuestionsContainer .question-block');
+  const questions = [];
+  for (const block of blocks) {
+    const questionText = block.querySelector('.question-text').value.trim();
+    if (!questionText) { alert('Fill in all questions!'); return false; }
+    const q = { question: questionText };
+    if (type === 'MCQ') {
+      q.options = [...block.querySelectorAll('.opt-input')].map(o => o.value.trim());
+      q.answer = block.querySelector('.correct-answer-text').value.trim();
+    } else {
+      q.answer = block.querySelector('.correct-answer-text').value.trim();
+    }
+    questions.push(q);
+  }
+  document.getElementById('editQuestionsJson').value = JSON.stringify(questions);
+  return true;
+}
+</script>
+{% endblock %}

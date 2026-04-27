@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block content %}
+
+<nav class="navbar">
+  <div class="nav-logo">
+    <div class="logo-icon">🎯</div>
+    <span class="logo-text">Quiz Generator</span>
+  </div>
+  <div class="nav-right">
+    <a href="/student" class="btn-nav">← Back</a>
+    <a href="/logout" class="btn-nav">Logout</a>
+  </div>
+</nav>
+
+<!-- Progress + Timer Bar -->
+<div style="background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 12px 40px; position: sticky; top: 0; z-index: 100;">
+  <div style="max-width: 900px; margin: 0 auto; display: flex; align-items: center; gap: 16px;">
+    <span style="font-size: 13px; color: var(--text-secondary); white-space: nowrap;">
+      <span id="progressText">0</span> / {{ quiz.questions|length }} answered
+    </span>
+    <div style="flex: 1; height: 8px; background: var(--bg-body); border-radius: 4px; overflow: hidden;">
+      <div id="progressBar" style="height:100%; width:0%; background: linear-gradient(90deg, var(--accent), #6366f1); border-radius:4px; transition: width 0.4s ease;"></div>
+    </div>
+    <div id="timerBox" style="background: var(--bg-card2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; font-family: monospace; font-size: 16px; font-weight: 700; color: var(--accent); white-space: nowrap; transition: color 0.3s, border-color 0.3s;">
+      ⏱️ <span id="timerDisplay">--:--</span>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-content">
+  <h1 class="page-title">{{ quiz.title }}</h1>
+  <p class="page-subtitle">{{ quiz.questions|length }} questions · {{ quiz.type }} · Answer carefully</p>
+
+  <form method="POST" action="/submit/{{ quiz.id }}" id="quizForm">
+    {% for q in quiz.questions %}
+    {% set qi = loop.index0 %}
+    <div class="quiz-card" id="qcard-{{ qi }}" style="transition: border-color 0.2s;">
+      <p style="margin-bottom:12px; font-weight:600; font-size:15px; line-height:1.5;">
+        Q{{ loop.index }}. {{ q.question }}
+      </p>
+
+      {% if quiz.type == "MCQ" %}
+        {% for opt in q.options %}
+        <label class="option-label" style="display:flex; align-items:center; gap:12px; padding:10px 14px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; cursor:pointer; transition: all 0.2s;">
+          <input type="radio" name="{{ qi }}" value="{{ opt }}" onchange="trackAnswer({{ qi }}, this.closest('.quiz-card'))">
+          <span style="font-size:14px;">{{ opt }}</span>
+        </label>
+        {% endfor %}
+      {% else %}
+        <input name="{{ qi }}" class="form-input" placeholder="Your answer" oninput="trackAnswer({{ qi }}, this.closest('.quiz-card'))">
+      {% endif %}
+    </div>
+    {% endfor %}
+
+    <button class="btn btn-primary btn-quiz-submit" id="submitBtn">Submit Quiz ✔️</button>
+  </form>
+</div>
+
+<style>
+@keyframes timerPulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+.option-label:hover { border-color: var(--accent) !important; background: var(--accent-glow); }
+</style>
+
+<script>
+const totalQ = {{ quiz.questions|length }};
+const isRapidFire = {{ 'true' if quiz.rapid_fire else 'false' }};
+const answered = new Set();
+let timeLeft = isRapidFire ? 10 : (totalQ * 60);
+let timerInterval;
+let currentQuestionIndex = 0;
+
+function trackAnswer(index, card) {
+  answered.add(index);
+  document.getElementById('progressText').textContent = answered.size;
+  document.getElementById('progressBar').style.width = `${(answered.size / totalQ) * 100}%`;
+  if (card) card.style.borderColor = 'var(--accent)';
+}
+
+// Highlight selected option
+document.querySelectorAll('.option-label input[type=radio]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    document.querySelectorAll(`input[name="${this.name}"]`).forEach(s => {
+      s.closest('.option-label').style.borderColor = 'var(--border)';
+      s.closest('.option-label').style.background = '';
+    });
+    this.closest('.option-label').style.borderColor = 'var(--accent)';
+    this.closest('.option-label').style.background = 'var(--accent-glow)';
+  });
+});
+
+function formatTime(s) {
+  if (isRapidFire) return `${s}s`;
+  return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+}
+
+function showQuestion(index) {
+  document.querySelectorAll('.quiz-card').forEach(c => c.style.display = 'none');
+  const activeCard = document.getElementById(`qcard-${index}`);
+  if (activeCard) {
+    activeCard.style.display = 'block';
+    activeCard.style.animation = 'slideIn 0.3s ease';
+  }
+}
+
+function startTimer() {
+  document.getElementById('timerDisplay').textContent = formatTime(timeLeft);
+  if (isRapidFire) {
+    document.getElementById('timerBox').style.color = '#ef4444';
+    document.getElementById('timerBox').style.borderColor = 'rgba(239,68,68,0.5)';
+  }
+  
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    const box = document.getElementById('timerBox');
+    document.getElementById('timerDisplay').textContent = formatTime(timeLeft);
+    
+    if (!isRapidFire) {
+      if (timeLeft <= 10) {
+        box.style.color = '#ef4444'; box.style.borderColor = 'rgba(239,68,68,0.5)';
+        box.style.animation = 'timerPulse 0.5s infinite';
+      } else if (timeLeft <= 30) {
+        box.style.color = '#ef4444'; box.style.borderColor = 'rgba(239,68,68,0.4)';
+      } else if (timeLeft <= 60) {
+        box.style.color = '#f59e0b';
+      }
+    } else {
+      // Rapid fire ticking animation
+      if (timeLeft <= 3) {
+        box.style.animation = 'timerPulse 0.3s infinite';
+      } else {
+        box.style.animation = 'none';
+      }
+    }
+    
+    if (timeLeft <= 0) {
+      if (isRapidFire) {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < totalQ) {
+          timeLeft = 10;
+          showQuestion(currentQuestionIndex);
+        } else {
+          clearInterval(timerInterval);
+          document.getElementById('quizForm').submit();
+        }
+      } else {
+        clearInterval(timerInterval); 
+        document.getElementById('quizForm').submit();
+      }
+    }
+  }, 1000);
+}
+
+document.getElementById('quizForm').addEventListener('submit', () => clearInterval(timerInterval));
+
+if (isRapidFire) {
+  showQuestion(0);
+  document.getElementById('submitBtn').style.display = 'none';
+}
+
+startTimer();
+</script>
+{% endblock %}

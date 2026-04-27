@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+{% block content %}
+
+<nav class="navbar">
+  <div class="nav-logo">
+    <div class="logo-icon">🎯</div>
+    <span class="logo-text">Quiz Generator</span>
+  </div>
+  <div class="nav-right">
+    <a href="/student" class="btn-nav">← Dashboard</a>
+    <a href="/leaderboard" class="btn-nav">🏆 Leaderboard</a>
+    <a href="/study_notes" class="btn-nav">🤖 Study Notes</a>
+    <a href="/notes" class="btn-nav">📋 Notes</a>
+    <a href="/logout" class="btn-nav">Logout</a>
+  </div>
+</nav>
+
+<div class="dashboard-content" style="max-width:900px;margin:0 auto;padding:40px 24px;">
+  <h1 class="page-title">&#x270D;&#xFE0F; AI Exam Answer Checker</h1>
+  <p class="page-subtitle">Upload your answer sheet PDF &mdash; AI grades it, your mentor reviews and approves the final result</p>
+
+  <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:12px;padding:14px 20px;margin-bottom:28px;display:flex;align-items:center;gap:14px;">
+    <div style="font-size:22px;flex-shrink:0;">&#x2139;&#xFE0F;</div>
+    <div style="font-size:13.5px;color:var(--text-secondary);line-height:1.6;">
+      <strong style="color:var(--text-primary);">How it works:</strong>&nbsp;
+      1. Upload PDF &rarr; 2. AI reads &amp; grades &rarr; 3. Mentor reviews, edits if needed, and approves final grade.&nbsp;
+      <strong style="color:var(--accent);">PDF files only. No other formats accepted.</strong>
+    </div>
+  </div>
+
+  <!-- UPLOAD FORM -->
+  <div class="quiz-card" id="uploadCard" style="margin-bottom:28px;">
+    <h2 class="section-heading" style="margin-top:0;">Exam Details</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Exam / Subject Name</label>
+        <input type="text" id="acExamName" class="form-input" placeholder="e.g. Applied AI &mdash; Final Exam">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject Code <span class="label-hint">(optional)</span></label>
+        <input type="text" id="acSubject" class="form-input" placeholder="e.g. 25KUU0200001">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Total Marks</label>
+        <input type="number" id="acTotalMarks" class="form-input" value="30" min="1" max="1000">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Grading Strictness</label>
+        <select id="acStrictness" class="form-select">
+          <option value="lenient">&#x1F60A; Lenient &mdash; minor errors forgiven</option>
+          <option value="standard" selected>&#x2696;&#xFE0F; Standard &mdash; fair teacher grading</option>
+          <option value="strict">&#x1F393; Strict &mdash; precise answers only</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Original Exam Questions <span class="label-hint">(paste for accurate grading &mdash; highly recommended)</span></label>
+      <textarea id="acContext" class="form-input" rows="4" placeholder="e.g.&#10;Q1a. Define Cost Function. (2 marks)&#10;Q2. Explain BFS with example. (3 marks)&#10;Q6. Apply A* on the graph. (5 marks)"></textarea>
+    </div>
+
+    <h2 class="section-heading">Upload Answer Sheet (PDF Only)</h2>
+    <div class="ac-drop-zone" id="acDropArea"
+         onclick="document.getElementById('acFile').click()"
+         ondragover="event.preventDefault();this.classList.add('ac-dz-over')"
+         ondragleave="this.classList.remove('ac-dz-over')"
+         ondrop="handleDrop(event)">
+      <div style="font-size:48px;margin-bottom:12px;">&#x1F4C4;</div>
+      <div id="acFileLabel" style="font-size:15px;font-weight:600;color:var(--text-secondary);">Click to select or drag &amp; drop your answer sheet here</div>
+      <div style="margin-top:10px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <span style="background:rgba(99,102,241,0.12);color:var(--accent);padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;">&#x1F4C4; PDF</span>
+        <span style="background:rgba(16,185,129,0.12);color:#10b981;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;">&#x1F4F7; JPG / PNG Photo</span>
+        <span style="background:rgba(245,158,11,0.12);color:#f59e0b;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;">&#x1F5BC; Any Image</span>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--text-muted);">Max 20 MB &nbsp;&middot;&nbsp; PDF recommended for best results</div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text-muted);">&#x1F4A1; For handwritten sheets: take a clear photo or scan with CamScanner</div>
+      <input type="file" id="acFile" accept=".pdf,.jpg,.jpeg,.png,.bmp,.tiff,.webp" class="hidden" onchange="onFileSelected()">
+    </div>
+    <div id="acFileError" class="hidden" style="margin-top:10px;padding:10px 16px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);border-radius:10px;color:#ef4444;font-size:13px;">
+      &#x274C; Unsupported file type. Please upload a PDF or an image (JPG, PNG, etc.).
+    </div>
+
+    <button class="btn btn-primary" id="acSubmitBtn" onclick="submitForGrading()" style="width:100%;margin-top:20px;font-size:15px;padding:14px;">
+      &#x1F50D; Grade My Answer Sheet with AI
+    </button>
+    <div id="acLoading" class="ai-loading hidden" style="margin-top:16px;">
+      <div class="spinner"></div>
+      <p id="acLoadingText" style="color:var(--accent);font-weight:600;font-size:15px;">Reading your answer sheet...</p>
+      <p style="font-size:13px;color:var(--text-muted);margin-top:6px;">Usually 20&ndash;40 seconds &nbsp;&middot;&nbsp; Report is saved and sent to your mentor for review</p>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div id="acResults" class="hidden">
+    <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+      <div style="font-size:22px;">&#x23F3;</div>
+      <div>
+        <div style="font-weight:700;font-size:14px;color:#f59e0b;">Pending Mentor Approval</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">Your report has been submitted. Your mentor will review the AI grading and approve or adjust marks before it becomes final.</div>
+      </div>
+    </div>
+
+    <div class="quiz-card" id="reportHeader" style="margin-bottom:20px;padding:0;overflow:hidden;">
+      <div style="background:linear-gradient(135deg,rgba(99,102,241,0.15),rgba(6,182,212,0.08));padding:28px;border-bottom:1px solid var(--border);">
+        <div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--text-muted);margin-bottom:6px;">AI Evaluation Report &middot; Awaiting Mentor Approval</div>
+        <div id="rptTitle" style="font-size:22px;font-weight:800;color:var(--text-primary);margin-bottom:4px;"></div>
+        <div id="rptMeta"  style="font-size:13px;color:var(--text-secondary);"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));">
+        <div id="rS1" class="rpt-stat" style="border-right:1px solid var(--border);"></div>
+        <div id="rS2" class="rpt-stat" style="border-right:1px solid var(--border);"></div>
+        <div id="rS3" class="rpt-stat" style="border-right:1px solid var(--border);"></div>
+        <div id="rS4" class="rpt-stat" style="border-right:1px solid var(--border);"></div>
+        <div id="rS5" class="rpt-stat"></div>
+      </div>
+      <div style="padding:0 28px 20px;">
+        <div style="height:8px;background:var(--bg-body);border-radius:4px;margin-top:16px;overflow:hidden;">
+          <div id="rptBar" style="height:100%;width:0%;border-radius:4px;transition:width 1.2s ease;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="quiz-card" style="margin-bottom:20px;padding:0;overflow:hidden;">
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px;">&#x1F4CA; Marks Summary <span style="font-size:12px;font-weight:400;color:var(--text-muted);">(AI initial grading &mdash; subject to mentor review)</span></div>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead><tr><th>Q.No</th><th>Question / Topic</th><th>AI Marks</th><th>Maximum</th><th>%</th></tr></thead>
+          <tbody id="rptSummaryBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- NLP Analysis Panel -->
+    <div id="nlpPanel" class="hidden" style="margin-bottom:20px;">
+      <div class="quiz-card" style="padding:0;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;">
+          &#x1F9E0; NLP Analysis
+          <span style="font-size:11px;font-weight:400;color:var(--text-muted);">sentence-transformers + spaCy</span>
+          <span id="nlpBadge" style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:20px;background:rgba(99,102,241,0.15);color:var(--accent);margin-left:auto;">Active</span>
+        </div>
+        <div style="padding:16px 20px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:14px;">
+            <div style="background:var(--bg-card2);border-radius:10px;padding:12px;border:1px solid var(--border);">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:4px;">Semantic Similarity</div>
+              <div id="nlpSim" style="font-size:20px;font-weight:800;color:var(--accent);">&#x2014;</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">vs exam context</div>
+            </div>
+            <div style="background:var(--bg-card2);border-radius:10px;padding:12px;border:1px solid var(--border);">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:4px;">Keyword Coverage</div>
+              <div id="nlpKw" style="font-size:20px;font-weight:800;color:#10b981;">&#x2014;</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">key concepts covered</div>
+            </div>
+            <div style="background:var(--bg-card2);border-radius:10px;padding:12px;border:1px solid var(--border);">
+              <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:4px;">NLP Score Hint</div>
+              <div id="nlpSugg" style="font-size:20px;font-weight:800;color:#f59e0b;">&#x2014;</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">cross-check (AI decides)</div>
+            </div>
+          </div>
+          <div id="nlpMissing" style="font-size:13px;color:var(--text-secondary);margin-bottom:8px;"></div>
+          <div id="nlpInsights" style="padding:10px 14px;background:rgba(99,102,241,0.07);border-radius:8px;font-size:13px;color:var(--text-primary);line-height:1.6;border-left:3px solid var(--accent);"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-weight:700;font-size:16px;margin:8px 0 14px;color:var(--text-primary);">&#x1F50D; Detailed Evaluation</div>
+    <div id="acBreakdown" style="margin-bottom:24px;"></div>
+
+    <div class="quiz-card" style="margin-bottom:32px;">
+      <div style="font-weight:700;font-size:15px;margin-bottom:16px;">&#x1F4CB; AI Feedback &amp; Recommendations</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+        <div style="background:rgba(74,222,128,0.07);border:1px solid rgba(74,222,128,0.2);border-radius:10px;padding:14px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#4ade80;margin-bottom:6px;">&#x1F4AA; Strongest Area</div>
+          <div id="rptStrongest" style="font-size:13.5px;color:var(--text-primary);line-height:1.6;"></div>
+        </div>
+        <div style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:14px;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#ef4444;margin-bottom:6px;">&#x1F4DA; Weakest Area</div>
+          <div id="rptWeakest" style="font-size:13.5px;color:var(--text-primary);line-height:1.6;"></div>
+        </div>
+      </div>
+      <div style="background:rgba(99,102,241,0.07);border:1px solid rgba(99,102,241,0.2);border-radius:10px;padding:14px;margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:6px;">&#x1F4DD; Overall Assessment</div>
+        <div id="rptOverall" style="font-size:13.5px;color:var(--text-primary);line-height:1.7;"></div>
+      </div>
+      <div style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.2);border-radius:10px;padding:14px;">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#f59e0b;margin-bottom:6px;">&#x1F31F; Encouragement</div>
+        <div id="rptEncouragement" style="font-size:13.5px;color:var(--text-primary);line-height:1.6;"></div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-bottom:40px;">
+      <button class="btn btn-primary" onclick="resetChecker()" style="min-width:240px;">&#x1F4E4; Check Another Answer Sheet</button>
+    </div>
+  </div>
+
+  <!-- PAST REPORTS -->
+  {% if my_reports %}
+  <h2 class="section-heading" style="margin-top:16px;">&#x1F5C2;&#xFE0F; Your Submitted Reports</h2>
+  {% for r in my_reports %}
+  {% set pct = ((r.scored / r.total_marks) * 100) | round(1) %}
+  <div class="quiz-card" style="margin-bottom:12px;padding:16px 20px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:180px;">
+        <div style="font-weight:700;font-size:14px;">{{ r.exam_name }}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">{{ r.submitted_at }}</div>
+      </div>
+      {% if r.status == 'approved' %}
+      <span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:8px;background:rgba(16,185,129,0.12);color:#10b981;white-space:nowrap;">&#x2705; Approved{% if r.get('approved_by') %} by {{ r.approved_by }}{% endif %}</span>
+      {% else %}
+      <span style="font-size:12px;font-weight:700;padding:4px 12px;border-radius:8px;background:rgba(245,158,11,0.12);color:#f59e0b;white-space:nowrap;">&#x23F3; Pending Review</span>
+      {% endif %}
+      <div style="font-weight:800;font-size:20px;color:{{ '#4ade80' if pct>=70 else '#f59e0b' if pct>=40 else '#ef4444' }};">{{ r.scored }} / {{ r.total_marks }}</div>
+      <span style="font-size:12px;font-weight:700;padding:3px 12px;border-radius:8px;background:{{ 'rgba(74,222,128,0.12)' if pct>=70 else 'rgba(245,158,11,0.12)' if pct>=40 else 'rgba(239,68,68,0.12)' }};color:{{ '#4ade80' if pct>=70 else '#f59e0b' if pct>=40 else '#ef4444' }};">{{ pct }}%</span>
+    </div>
+    {% if r.get('mentor_note') %}
+    <div style="margin-top:10px;padding:8px 12px;background:rgba(99,102,241,0.07);border-left:3px solid var(--accent);border-radius:0 8px 8px 0;font-size:13px;color:var(--text-secondary);">
+      &#x1F4AC; <strong>Mentor Note:</strong> {{ r.mentor_note }}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+
+<style>
+.ac-drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:40px 24px;text-align:center;cursor:pointer;transition:all .25s;background:var(--bg-input);}
+.ac-drop-zone:hover,.ac-dz-over{border-color:var(--accent)!important;background:var(--accent-glow)!important;}
+.ac-drop-zone.ac-ok{border-color:#10b981;background:rgba(16,185,129,0.06);}
+.rpt-stat{padding:16px 20px;text-align:center;}
+.rpt-val{font-size:22px;font-weight:800;line-height:1;}
+.rpt-lbl{font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;margin-top:4px;}
+.ac-qblock{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;overflow:hidden;}
+.ac-qblock.correct{border-color:rgba(74,222,128,0.4);}
+.ac-qblock.partial{border-color:rgba(245,158,11,0.4);}
+.ac-qblock.zero{border-color:rgba(239,68,68,0.35);}
+.ac-qhdr{display:flex;align-items:center;gap:12px;padding:14px 18px;cursor:pointer;user-select:none;}
+.ac-qhdr:hover{background:rgba(255,255,255,0.025);}
+.ac-qtitle{flex:1;font-weight:600;font-size:14px;color:var(--text-primary);line-height:1.4;}
+.ac-qmarks{font-size:13px;font-weight:700;white-space:nowrap;padding:3px 11px;border-radius:8px;}
+.ac-qmarks.full{background:rgba(74,222,128,0.15);color:#4ade80;}
+.ac-qmarks.partial{background:rgba(245,158,11,0.15);color:#f59e0b;}
+.ac-qmarks.zero{background:rgba(239,68,68,0.15);color:#ef4444;}
+.ac-chev{font-size:12px;color:var(--text-muted);transition:transform .22s;flex-shrink:0;}
+.ac-chev.open{transform:rotate(180deg);}
+.ac-qbody{display:none;padding:0 18px 16px;border-top:1px solid var(--border);}
+.ac-qbody.open{display:block;}
+.ac-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin:12px 0 5px;}
+.ac-box{font-size:13.5px;color:var(--text-primary);line-height:1.7;background:var(--bg-card2);padding:10px 14px;border-radius:8px;}
+.ac-list{list-style:none;padding:0;margin:0;}
+.ac-list li{display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-secondary);line-height:1.5;}
+.ac-list li:last-child{border-bottom:none;}
+.hidden{display:none!important;}
+</style>
+
+<script>
+var selFile=null;
+var loadMsgs=['Reading your answer sheet...','Identifying questions and answers...','Evaluating each answer carefully...','Computing marks and deductions...','Preparing your detailed report...'];
+
+function onFileSelected(){var f=document.getElementById('acFile').files[0];if(f)validateAndSet(f);}
+function handleDrop(e){e.preventDefault();document.getElementById('acDropArea').classList.remove('ac-dz-over');var f=e.dataTransfer.files[0];if(f)validateAndSet(f);}
+
+function validateAndSet(f){
+  var errEl=document.getElementById('acFileError');
+  var allowed=['.pdf','.jpg','.jpeg','.png','.bmp','.tiff','.webp'];
+  var extOk=allowed.some(function(e){return f.name.toLowerCase().endsWith(e);});
+  var mimeOk=!f.type||f.type.startsWith('image/')||f.type==='application/pdf'||f.type==='application/x-pdf';
+  if(!extOk||!mimeOk){
+    errEl.classList.remove('hidden');
+    selFile=null;
+    document.getElementById('acDropArea').classList.remove('ac-ok');
+    document.getElementById('acFile').value='';
+    return;
+  }
+  errEl.classList.add('hidden');
+  selFile=f;
+  document.getElementById('acDropArea').classList.add('ac-ok');
+  document.getElementById('acFileLabel').innerHTML='&#x2705;&nbsp;<strong>'+f.name+'</strong>&nbsp;<span style="color:var(--text-muted);font-weight:400;">('+( f.size/1024/1024).toFixed(2)+' MB)</span>';
+}
+
+async function submitForGrading(){
+  if(!selFile){alert('Please select your answer sheet PDF first.');return;}
+  var examName=document.getElementById('acExamName').value.trim()||'Exam';
+  var subject=document.getElementById('acSubject').value.trim()||examName;
+  var totalMarks=parseInt(document.getElementById('acTotalMarks').value)||30;
+  var context=document.getElementById('acContext').value.trim();
+  var strictness=document.getElementById('acStrictness').value;
+  var btn=document.getElementById('acSubmitBtn');
+  btn.disabled=true;
+  document.getElementById('acLoading').classList.remove('hidden');
+  document.getElementById('acResults').classList.add('hidden');
+  var mi=0,mt=setInterval(function(){document.getElementById('acLoadingText').textContent=loadMsgs[mi=(mi+1)%loadMsgs.length];},6000);
+  try{
+    var fd=new FormData();
+    fd.append('pdf',selFile);fd.append('examName',examName);fd.append('subject',subject);
+    fd.append('totalMarks',totalMarks);fd.append('context',context);fd.append('strictness',strictness);
+    var res=await fetch('/check-answers',{method:'POST',body:fd});
+    var data=await res.json();
+    if(!res.ok||data.error)throw new Error(data.error||'Grading failed.');
+    renderReport(data,examName,subject,totalMarks,strictness);
+  }catch(err){alert('&#x274C; '+err.message);}
+  finally{clearInterval(mt);btn.disabled=false;document.getElementById('acLoading').classList.add('hidden');}
+}
+
+function renderReport(data,examName,subject,totalMarks,strictness){
+  var scored=data.scored||0,pct=Math.round(scored/totalMarks*100);
+  var grades=[[90,'A+','#10b981'],[80,'A','#10b981'],[70,'B','#4ade80'],[60,'C','#f59e0b'],[40,'D','#f97316'],[0,'F','#ef4444']];
+  var g=grades.find(function(x){return pct>=x[0];});var grade=g[1],gc=g[2];
+  var barC=pct>=70?'#10b981':pct>=40?'#f59e0b':'#ef4444';
+  var perfs=[[85,'Outstanding (85+)'],[70,'Good (70-84)'],[55,'Satisfactory (55-69)'],[40,'Needs Improvement'],[0,'Poor']];
+  var perf=perfs.find(function(x){return pct>=x[0];})[1];
+  var now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  document.getElementById('rptTitle').textContent=examName;
+  document.getElementById('rptMeta').textContent='Subject: '+subject+'  |  '+now+'  |  '+strictness.charAt(0).toUpperCase()+strictness.slice(1)+' grading';
+  mkS('rS1',scored+' / '+totalMarks,'AI Score',gc);mkS('rS2',pct+'%','Accuracy',gc);mkS('rS3',grade,'Grade',gc);mkS('rS4',perf,'Performance','var(--text-secondary)');
+  setTimeout(function(){var b=document.getElementById('rptBar');b.style.width=pct+'%';b.style.background=barC;},60);
+  var tb=document.getElementById('rptSummaryBody');tb.innerHTML='';
+  (data.questions||[]).forEach(function(q,i){var qp=q.max_marks>0?Math.round(q.earned_marks/q.max_marks*100):0;var qc=qp>=70?'#4ade80':qp>=40?'#f59e0b':'#ef4444';tb.innerHTML+='<tr><td style="font-weight:700;color:var(--accent);">Q'+(i+1)+'</td><td>'+esc(q.question_text||'Q'+(i+1))+'</td><td style="font-weight:700;color:'+qc+';">'+q.earned_marks+'</td><td>'+q.max_marks+'</td><td style="font-weight:700;color:'+qc+';">'+qp+'%</td></tr>';});
+  var bd=document.getElementById('acBreakdown');bd.innerHTML='';
+  (data.questions||[]).forEach(function(q,i){
+    var ep=q.max_marks>0?q.earned_marks/q.max_marks:1;
+    var sc=ep>=1?'correct':ep>0?'partial':'zero',mc=ep>=1?'full':ep>0?'partial':'zero',ic=ep>=1?'&#x2705;':ep>0?'&#x26A1;':'&#x274C;';
+    var cpH=(q.correct_points||[]).map(function(p){return '<li><span style="color:#4ade80;flex-shrink:0;">&#x2713;</span><span>'+esc(p)+'</span></li>';}).join('');
+    var gpH=(q.gaps||[]).map(function(p){return '<li><span style="flex-shrink:0;">&#x2702;&#xFE0F;</span><span>'+esc(p)+'</span></li>';}).join('');
+    var blk=document.createElement('div');blk.className='ac-qblock '+sc;
+    blk.innerHTML='<div class="ac-qhdr" onclick="tQ('+i+')"><span class="ac-qtitle">'+ic+' '+esc(q.question_text||'Q'+(i+1))+'</span><span class="ac-qmarks '+mc+'">'+q.earned_marks+' / '+q.max_marks+' marks</span><span class="ac-chev" id="chv'+i+'">&#x25BC;</span></div>'
+      +'<div class="ac-qbody" id="qbd'+i+'">'
+      +'<div class="ac-lbl">What You Wrote</div><div class="ac-box">'+esc(q.student_answer||'(No answer detected)')+'</div>'
+      +'<div class="ac-lbl">AI Verdict</div><div class="ac-box" style="color:var(--accent-light);font-style:italic;">'+esc(q.holistic_verdict||'')+'</div>'
+      +(cpH?'<div class="ac-lbl">&#x2705; What You Got Right</div><ul class="ac-list ac-box" style="background:rgba(74,222,128,0.05);">'+cpH+'</ul>':'')
+      +(gpH?'<div class="ac-lbl">&#x2702;&#xFE0F; Why Marks Were Cut</div><ul class="ac-list ac-box" style="background:rgba(239,68,68,0.05);">'+gpH+'</ul>':'')
+      +(q.suggestion?'<div class="ac-lbl">&#x1F4A1; How to Improve</div><div class="ac-box" style="color:#f59e0b;">'+esc(q.suggestion)+'</div>':'')
+      +(q.semantic_quality?'<div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;">Semantic Quality</span><span style="padding:2px 10px;border-radius:20px;font-size:12px;font-weight:700;background:'+(q.semantic_quality==='Excellent'?'rgba(16,185,129,0.15)':q.semantic_quality==='Good'?'rgba(74,222,128,0.12)':q.semantic_quality==='Partial'?'rgba(245,158,11,0.12)':'rgba(239,68,68,0.12)')+';color:'+(q.semantic_quality==='Excellent'?'#10b981':q.semantic_quality==='Good'?'#4ade80':q.semantic_quality==='Partial'?'#f59e0b':'#ef4444')+';">'+q.semantic_quality+'</span>'+(q.nlp_analysis&&q.nlp_analysis.semantic_similarity!=null?'<span style="font-size:11px;color:var(--text-muted);">NLP similarity: '+(q.nlp_analysis.semantic_similarity*100).toFixed(1)+'%</span>':'')+' </div>':'')
+      +'</div>';
+    bd.appendChild(blk);
+  });
+  var fb=(data.questions||[]).findIndex(function(q){return q.earned_marks<q.max_marks;});if(fb>=0)tQ(fb);
+  document.getElementById('rptOverall').textContent=data.overall_feedback||'';
+  document.getElementById('rptStrongest').textContent=data.strongest_area||'';
+  document.getElementById('rptWeakest').textContent=data.weakest_area||'';
+  document.getElementById('rptEncouragement').textContent=data.encouragement||'';
+
+  // ── NLP Panel ──────────────────────────────────────────────────────────────
+  var preNlp = data.pre_nlp || {};
+  var nlpPanel = document.getElementById('nlpPanel');
+  nlpPanel.classList.remove('hidden');
+  if (preNlp.nlp_available) {
+    var sim = preNlp.semantic_similarity;
+    var kw  = preNlp.keyword_coverage || {};
+    var sg  = preNlp.nlp_suggested_pct;
+    var simC = sim >= 0.7 ? '#10b981' : sim >= 0.4 ? '#f59e0b' : '#ef4444';
+    document.getElementById('nlpSim').textContent = sim != null ? (sim*100).toFixed(1)+'%' : '-';
+    document.getElementById('nlpSim').style.color = simC;
+    document.getElementById('nlpKw').textContent  = kw.coverage_pct != null ? kw.coverage_pct+'%' : '-';
+    document.getElementById('nlpSugg').textContent= sg != null ? sg+'%' : '-';
+    if (kw.missing && kw.missing.length > 0) {
+      document.getElementById('nlpMissing').innerHTML =
+        '<strong style="color:#ef4444;">Missing keywords:</strong> '+
+        kw.missing.slice(0,8).map(function(k){
+          return '<span style="background:rgba(239,68,68,0.1);color:#ef4444;padding:2px 8px;border-radius:4px;margin:2px;display:inline-block;font-size:12px;">'+esc(k)+'</span>';
+        }).join('');
+    }
+    document.getElementById('nlpInsights').textContent = data.nlp_insights || '';
+  } else {
+    document.getElementById('nlpBadge').textContent = 'Basic Mode';
+    document.getElementById('nlpBadge').style.background = 'rgba(100,116,139,0.15)';
+    document.getElementById('nlpBadge').style.color = 'var(--text-muted)';
+    document.getElementById('nlpInsights').innerHTML =
+      '<span style="color:var(--text-muted);">&#x1F4A1; Install NLP libraries for enhanced analysis: <code style="background:var(--bg-card2);padding:2px 6px;border-radius:4px;">pip install sentence-transformers spacy &amp;&amp; python -m spacy download en_core_web_sm</code></span>';
+  }
+  mkS('rS5', data.nlp_available ? '&#x1F9E0; Active' : '&#x1F9E0; Basic', 'NLP Engine',
+      data.nlp_available ? 'var(--accent)' : 'var(--text-muted)');
+
+  document.getElementById('acResults').classList.remove('hidden');
+  document.getElementById('reportHeader').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function mkS(id,val,lbl,color){document.getElementById(id).innerHTML='<div class="rpt-val" style="color:'+color+';">'+val+'</div><div class="rpt-lbl">'+lbl+'</div>';}
+function tQ(i){document.getElementById('qbd'+i).classList.toggle('open');document.getElementById('chv'+i).classList.toggle('open');}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');}
+function resetChecker(){selFile=null;document.getElementById('acFile').value='';document.getElementById('acDropArea').classList.remove('ac-ok');document.getElementById('acFileLabel').innerHTML='Click to select or drag &amp; drop your answer sheet here';document.getElementById('acFileError').classList.add('hidden');document.getElementById('acResults').classList.add('hidden');document.getElementById('uploadCard').scrollIntoView({behavior:'smooth'});}
+</script>
+{% endblock %}

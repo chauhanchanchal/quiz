@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block content %}
+<nav class="navbar">
+  <div class="nav-logo">
+    <div class="logo-icon">🤖</div>
+    <span class="logo-text">AI Study Notes</span>
+  </div>
+  <div class="nav-right">
+    <a href="/{{ 'mentor' if user.role == 'mentor' else 'student' }}" class="btn-nav">← Dashboard</a>
+    <a href="/leaderboard" class="btn-nav">🏆 Leaderboard</a>
+    <a href="/notes" class="btn-nav">📋 Notes</a>
+    <a href="/logout" class="btn-nav">Logout</a>
+  </div>
+</nav>
+
+<div class="dashboard-content" style="max-width: 800px; margin: 40px auto;">
+  <h1 class="page-title">Generate AI Study Notes</h1>
+  <p class="page-subtitle">Get instant summaries and detailed notes on any topic</p>
+
+  <div class="quiz-card">
+    <div class="form-group">
+      <label class="form-label">Topic</label>
+      <input type="text" id="aiTopic" class="form-input" placeholder="e.g. Machine Learning Basics, CSS Tricks, World War II" required>
+    </div>
+    
+    <div class="form-group">
+      <label class="form-label">Style</label>
+      <select id="aiStyle" class="form-select">
+        <option value="detailed">Detailed Explanations</option>
+        <option value="bullet">Bullet Points</option>
+        <option value="summary">Short Summary</option>
+      </select>
+    </div>
+
+    <button class="btn btn-primary" id="generateBtn" onclick="generateAINotes()" style="margin-top: 10px; width: 100%;">⚡ Generate Notes</button>
+    
+    <div id="aiLoading" class="ai-loading hidden" style="text-align: center; margin-top: 15px;">
+      <div class="spinner" style="border: 3px solid rgba(59, 130, 246, 0.3); border-radius: 50%; border-top-color: var(--accent); width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+      <p style="margin-top: 8px; color: var(--accent);">AI is writing your notes...</p>
+    </div>
+  </div>
+
+  <div id="resultContainer" class="quiz-card hidden" style="margin-top: 20px;">
+    <h2 class="section-heading">Your Notes</h2>
+    <div id="notesResult" style="white-space: pre-wrap; line-height: 1.6; color: var(--text-primary); font-size: 15px;"></div>
+  </div>
+</div>
+
+<style>
+.hidden { display: none !important; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+</style>
+
+<script>
+async function generateAINotes() {
+  const topic = document.getElementById('aiTopic').value.trim();
+  const style = document.getElementById('aiStyle').value;
+  if (!topic) {
+    alert("Please enter a topic.");
+    return;
+  }
+  
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('aiLoading').classList.remove('hidden');
+  document.getElementById('resultContainer').classList.add('hidden');
+
+  try {
+    const res = await fetch('/generate-study-notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, style })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert("Error: " + data.error);
+    } else {
+      document.getElementById('notesResult').textContent = data.notes;
+      document.getElementById('resultContainer').classList.remove('hidden');
+    }
+  } catch (err) {
+    alert("Failed to generate notes: " + err.message);
+  } finally {
+    document.getElementById('generateBtn').disabled = false;
+    document.getElementById('aiLoading').classList.add('hidden');
+  }
+}
+</script>
+{% endblock %}

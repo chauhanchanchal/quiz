@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div id="loginPage" class="page active">
+  <div class="login-card">
+
+    <!-- LOGO -->
+    <div class="logo">
+      <div class="logo-icon">🎯</div>
+      <span class="logo-text">Quiz Generator</span>
+    </div>
+
+    <p class="login-subtitle">Create your account</p>
+
+    {% if error %}
+    <p style="color: var(--red); margin-bottom: 15px;">{{ error }}</p>
+    {% endif %}
+
+    <!-- FORM -->
+    <form method="POST">
+
+      <div class="form-group">
+        <label class="form-label">Name</label>
+        <input name="name" type="text" class="form-input" placeholder="Enter your name" required autocomplete="off">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">KU ID</label>
+        <input name="ku_id" type="text" class="form-input" placeholder="Enter your KU ID" required autocomplete="off">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input name="password" type="password" class="form-input" placeholder="Enter your password" required autocomplete="new-password">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Class</label>
+        <select name="class" class="form-select">
+          <option>AIML DA-A</option>
+          <option>AIML DA-B</option>
+          <option>GENAI-A</option>
+          <option>GENAI-B</option>
+          <option>CYBER</option>
+        </select>
+      </div>
+
+      <!-- ✅ ONLY CHANGE: spacing added -->
+      <button type="submit" class="btn btn-primary" style="margin-top: 20px;">
+        ➜ Register
+      </button>
+
+    </form>
+
+    <p class="register-link">
+        <br>
+      Already have an account? 
+      <a href="/">Login here</a>
+    </p>
+
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<nav class="navbar">
+  <div class="nav-logo">
+    <div class="logo-icon">🎯</div>
+    <span class="logo-text">Leaderboard</span>
+  </div>
+
+  <div class="nav-right">
+    <a href="/{{ user.role }}" class="btn-nav">← Dashboard</a>
+    <a href="/notes" class="btn-nav">📋 Notes</a>
+    <a href="/logout" class="btn-nav">Logout</a>
+  </div>
+</nav>
+
+<div class="dashboard-content">
+
+  <h1 class="page-title">🏆 Top Performers</h1>
+  <p class="page-subtitle">See who's leading the charts in each quiz</p>
+
+  {% if leaderboard %}
+  {% for item in leaderboard %}
+  <div class="quiz-card" style="margin-bottom: 30px; padding: 0; overflow: hidden;">
+    <div
+      style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02);">
+      <div>
+        <h2 style="margin: 0; font-size: 20px;">{{ item.title }}</h2>
+        <span style="font-size: 13px; color: var(--text-muted);">{{ item.subject }}</span>
+      </div>
+      <span class="badge-mcq" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">{{ item.rankings|length }}
+        Submissions</span>
+    </div>
+
+    <div style="overflow-x: auto;">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 80px; text-align: center;">Rank</th>
+            <th>Student</th>
+            <th>Class</th>
+            <th>Score</th>
+            <th>Accuracy</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if item.rankings %}
+          {% for s in item.rankings %}
+          <tr style="{{ 'background: rgba(245, 158, 11, 0.05);' if loop.index == 1 else '' }}">
+            <td style="text-align: center; font-size: 18px;">
+              {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index
+              }}{% endif %}
+            </td>
+            <td>
+              <div style="font-weight: 600;">{{ s.name }}</div>
+              <div style="font-size: 11px; color: var(--text-muted);">Achieved on {{ s.timestamp.split(' ')[0] }}</div>
+            </td>
+            <td>{{ s.class }}</td>
+            <td style="font-family: monospace;">{{ s.score }} / {{ s.total }}</td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="font-weight: 700; color: var(--accent);">{{ s.percentage }}%</span>
+                <div
+                  style="flex-grow: 1; height: 6px; background: var(--bg-body); border-radius: 3px; max-width: 100px;">
+                  <div style="height: 100%; width: {{ s.percentage }}%; background: var(--accent); border-radius: 3px;">
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% else %}
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 30px; color: var(--text-secondary);">
+              No submissions yet for this quiz. Be the first to top the leaderboard!
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="quiz-card" style="text-align: center; padding: 60px;">
+    <p style="color: var(--text-secondary); font-size: 18px;">No quizzes available in the system yet.</p>
+  </div>
+  {% endif %}
+
+</div>
+
+{% endblock %}

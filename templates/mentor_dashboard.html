@@ -1,0 +1,1051 @@
+{% extends "base.html" %}
+{% block content %}
+
+<nav class="navbar">
+  <div class="nav-logo">
+    <div class="logo-icon">🎯</div>
+    <span class="logo-text">Quiz Generator</span>
+  </div>
+  <div class="nav-right">
+    <div class="user-pill">
+      <div class="avatar">{{ user.name[0] }}</div>
+      <div class="user-info">
+        <div class="user-name">{{ user.name }}</div>
+        <div class="user-role">Mentor</div>
+      </div>
+    </div>
+    <a href="/leaderboard" class="btn-nav">🏆 Leaderboard</a>
+    <a href="/study_notes" class="btn-nav">🤖 Study Notes</a>
+    <a href="/notes" class="btn-nav">📋 Notes</a>
+    <a href="/logout" class="btn-nav">Logout</a>
+  </div>
+</nav>
+
+<!-- Dark/Light toggle -->
+<button id="themeToggle" class="theme-toggle-btn" onclick="toggleTheme()">🌙</button>
+
+<!-- Student Graph Modal -->
+<div id="graphModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:32px; width:90%; max-width:680px; position:relative; max-height:80vh; overflow-y:auto;">
+    <button onclick="closeGraphModal()" style="position:absolute;top:16px;right:16px; background:none; border:none; color:var(--text-secondary); font-size:20px; cursor:pointer;">✕</button>
+    <h2 id="graphModalTitle" style="margin-bottom:20px; font-size:18px;"></h2>
+    <canvas id="studentChart" style="max-height:300px;"></canvas>
+    <p id="graphEmpty" class="hidden" style="text-align:center; color:var(--text-secondary); padding:40px 0;">No quiz attempts yet.</p>
+  </div>
+</div>
+
+<div class="dashboard-content">
+  <h1 class="page-title">Mentor Dashboard</h1>
+  <p class="page-subtitle">Choose how you want to create a quiz</p>
+
+  <!-- MODE SELECTOR -->
+  <div id="modeSelector" class="mode-selector">
+    <div class="mode-card" onclick="showMode('custom')">
+      <div class="mode-icon">✏️</div>
+      <h2 class="mode-title">Custom Quiz</h2>
+      <p class="mode-desc">Create a quiz manually with your own questions and answers</p>
+      <span class="mode-arrow">→</span>
+    </div>
+    <div class="mode-card" onclick="showMode('ai')">
+      <div class="mode-icon">🤖</div>
+      <h2 class="mode-title">AI Generated Quiz</h2>
+      <p class="mode-desc">Let AI generate a complete quiz on any topic instantly</p>
+      <span class="mode-arrow">→</span>
+    </div>
+    <div class="mode-card" onclick="showMode('pdf')">
+      <div class="mode-icon">📄</div>
+      <h2 class="mode-title">PDF to Quiz</h2>
+      <p class="mode-desc">Upload a PDF and let AI create a quiz from its content</p>
+      <span class="mode-arrow">→</span>
+    </div>
+    <div class="mode-card" onclick="showMode('exam')">
+      <div class="mode-icon">🎓</div>
+      <h2 class="mode-title">Full Exam Paper</h2>
+      <p class="mode-desc">Generate professional structured exam papers (.docx) with sections.</p>
+      <span class="mode-arrow">→</span>
+    </div>
+    <div class="mode-card" onclick="showMode('ppt')">
+      <div class="mode-icon">
+        <img src="{{ url_for('static', filename='ppt_icon.jpeg') }}" alt="PPT" style="height:40px;">
+      </div>
+      <h2 class="mode-title">PPT to Quiz</h2>
+      <p class="mode-desc">Convert PowerPoint slides into interactive quizzes</p>
+      <span class="mode-arrow">→</span>
+    </div>
+    <div class="mode-card" onclick="scrollToReports()" style="border-color:rgba(99,102,241,0.35); background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(99,102,241,0.02));">
+      <div class="mode-icon" style="font-size:44px;">✍️</div>
+      <h2 class="mode-title">Answer Checker</h2>
+      <p class="mode-desc">Students upload handwritten answer PDFs — AI grades them, you review and approve</p>
+      <span class="mode-arrow" style="color:var(--accent);">→</span>
+    </div>
+  </div>
+
+  <!-- SCHEDULE FIELDS (shared helper snippet, injected inline per section) -->
+
+  <!-- CUSTOM QUIZ FORM -->
+  <div id="customSection" class="quiz-section hidden">
+    <button class="btn-back" onclick="showMode('none')">← Back to options</button>
+    <h2 class="section-heading">📝 Create Custom Quiz</h2>
+    <form method="POST" action="/create_quiz" id="customQuizForm" onsubmit="return prepareCustomSubmit()">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Quiz Name</label>
+          <input name="title" type="text" class="form-input" placeholder="e.g. Python Basics Test" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subject</label>
+          <input name="subject" type="text" class="form-input" placeholder="e.g. Python, Math, DSA" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Type of Quiz</label>
+          <select name="type" id="customType" class="form-select" onchange="updateQuestionTemplate()">
+            <option value="MCQ">MCQ</option>
+            <option value="Rapid Fire">Rapid Fire</option>
+            <option value="Fill in the Blank">Fill in the Blank</option>
+            <option value="Coding">Coding</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Assign to Class</label>
+          <select name="class" class="form-select">
+            <option value="All">All Classes</option>
+            <option value="AIML DA-A">AIML DA-A</option>
+            <option value="AIML DA-B">AIML DA-B</option>
+            <option value="GENAI-A">GENAI-A</option>
+            <option value="GENAI-B">GENAI-B</option>
+            <option value="CYBER">CYBER</option>
+          </select>
+        </div>
+      </div>
+      <!-- Schedule -->
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">📅 Open At <span class="label-hint">(optional)</span></label>
+          <input type="datetime-local" name="open_at" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">📅 Close At <span class="label-hint">(optional)</span></label>
+          <input type="datetime-local" name="close_at" class="form-input">
+        </div>
+      </div>
+      <!-- Quiz Settings -->
+      <div class="settings-group">
+        <div class="settings-title">⚙️ Quiz Settings</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">🔒 Max Attempts <span class="label-hint">(0 = unlimited)</span></label>
+            <input type="number" name="max_attempts" class="form-input" value="0" min="0" max="100">
+          </div>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 8px; justify-content: center; padding-top: 10px;">
+            <label class="checkbox-label">
+              <input type="checkbox" name="shuffle_questions"> 🔀 Shuffle Questions
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" name="shuffle_options"> 🔀 Shuffle Options
+            </label>
+            <label class="checkbox-label" style="color: #ef4444; font-weight: 600;">
+              <input type="checkbox" name="rapid_fire"> ⏱️ Rapid Fire (10s/Q)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div id="questionsContainer"></div>
+      <input type="hidden" name="questions_json" id="questionsJsonInput">
+      <div class="btn-row">
+        <button type="button" class="btn btn-add" onclick="addQuestion()">＋ Add Question</button>
+        <button type="submit" class="btn btn-primary btn-submit">🚀 Submit Quiz</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- AI QUIZ FORM -->
+  <div id="aiSection" class="quiz-section hidden">
+    <button class="btn-back" onclick="showMode('none')">← Back to options</button>
+    <h2 class="section-heading">🤖 AI Generated Quiz</h2>
+    <div class="ai-form-card">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Quiz Name</label>
+          <input id="aiTitle" type="text" class="form-input" placeholder="e.g. AI Generated Python Quiz">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subject / Topic</label>
+          <input id="aiSubject" type="text" class="form-input" placeholder="e.g. Machine Learning">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select id="aiType" class="form-select">
+            <option value="MCQ">MCQ</option>
+            <option value="Rapid Fire">Rapid Fire</option>
+            <option value="Fill in the Blank">Fill in the Blank</option>
+            <option value="Coding">Coding</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Assign to Class</label>
+          <select id="aiClass" class="form-select">
+            <option value="All">All Classes</option>
+            <option value="AIML DA-A">AIML DA-A</option>
+            <option value="AIML DA-B">AIML DA-B</option>
+            <option value="GENAI-A">GENAI-A</option>
+            <option value="GENAI-B">GENAI-B</option>
+            <option value="CYBER">CYBER</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Questions</label>
+          <input id="aiCount" type="number" class="form-input" value="5" min="1" max="20">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Difficulty</label>
+          <select id="aiDifficulty" class="form-select">
+            <option value="Easy">Easy</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">📅 Open At <span class="label-hint">(optional)</span></label>
+          <input type="datetime-local" id="aiOpenAt" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label">📅 Close At <span class="label-hint">(optional)</span></label>
+          <input type="datetime-local" id="aiCloseAt" class="form-input">
+        </div>
+      </div>
+      <!-- Quiz Settings -->
+      <div class="settings-group" style="margin-top: 16px;">
+        <div class="settings-title">⚙️ Quiz Settings</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">🔒 Max Attempts <span class="label-hint">(0 = unlimited)</span></label>
+            <input type="number" id="aiMaxAttempts" class="form-input" value="0" min="0" max="100">
+          </div>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 8px; justify-content: center; padding-top: 10px;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="aiShuffleQ"> 🔀 Shuffle Questions
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="aiShuffleOpt"> 🔀 Shuffle Options
+            </label>
+            <label class="checkbox-label" style="color: #ef4444; font-weight: 600;">
+              <input type="checkbox" id="aiRapidFire"> ⏱️ Rapid Fire (10s/Q)
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <button type="button" class="btn btn-primary btn-generate" id="generateBtn" onclick="generateAIQuiz()">⚡ Generate Quiz with AI</button>
+    <div id="aiLoading" class="ai-loading hidden">
+      <div class="spinner"></div>
+      <p>AI is generating your quiz...</p>
+    </div>
+  </div>
+
+  <!-- PDF SECTION -->
+  <div id="pdfSection" class="quiz-section hidden">
+    <button class="btn-back" onclick="showMode('none')">← Back to options</button>
+    <h2 class="section-heading">📄 PDF to Quiz</h2>
+    <div class="ai-form-card">
+      <div class="form-group">
+        <label class="form-label">Upload PDF</label>
+        <div class="file-upload-wrapper" id="dropArea" onclick="document.getElementById('pdfFile').click()">
+          <div class="file-upload-icon">📁</div>
+          <p id="fileNameDisplay">Click to select or drag and drop your PDF here</p>
+          <input type="file" id="pdfFile" accept=".pdf" class="hidden" onchange="updateFileName()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Quiz Name</label>
+          <input id="pdfTitle" type="text" class="form-input" placeholder="e.g. Midterm PDF Quiz">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subject</label>
+          <input id="pdfSubject" type="text" class="form-input" placeholder="e.g. Biology, History">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select id="pdfType" class="form-select">
+            <option value="MCQ">MCQ</option>
+            <option value="Rapid Fire">Rapid Fire</option>
+            <option value="Fill in the Blank">Fill in the Blank</option>
+            <option value="Coding">Coding</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Questions</label>
+          <input id="pdfCount" type="number" class="form-input" value="5" min="1" max="20">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Difficulty</label>
+          <select id="pdfDifficulty" class="form-select">
+            <option value="Easy">Easy</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Class</label>
+          <select id="pdfClass" class="form-select">
+            <option value="All">All Classes</option>
+            <option value="AIML DA-A">AIML DA-A</option>
+            <option value="AIML DA-B">AIML DA-B</option>
+            <option value="GENAI-A">GENAI-A</option>
+            <option value="GENAI-B">GENAI-B</option>
+            <option value="CYBER">CYBER</option>
+          </select>
+        </div>
+      </div>
+      <!-- Quiz Settings -->
+      <div class="settings-group" style="margin-top: 16px;">
+        <div class="settings-title">⚙️ Quiz Settings</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">🔒 Max Attempts <span class="label-hint">(0 = unlimited)</span></label>
+            <input type="number" id="pdfMaxAttempts" class="form-input" value="0" min="0" max="100">
+          </div>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 8px; justify-content: center; padding-top: 10px;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="pdfShuffleQ"> 🔀 Shuffle Questions
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="pdfShuffleOpt"> 🔀 Shuffle Options
+            </label>
+            <label class="checkbox-label" style="color: #ef4444; font-weight: 600;">
+              <input type="checkbox" id="pdfRapidFire"> ⏱️ Rapid Fire (10s/Q)
+            </label>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary btn-generate" id="pdfGenerateBtn" onclick="generatePDFQuiz()">⚡ Analyze PDF & Generate</button>
+      <div id="pdfLoading" class="ai-loading hidden"><div class="spinner"></div><p>AI is reading your PDF...</p></div>
+    </div>
+  </div>
+
+  <!-- PPT SECTION -->
+  <div id="pptSection" class="quiz-section hidden">
+    <button class="btn-back" onclick="showMode('none')">← Back to options</button>
+    <h2 class="section-heading">📊 PPT to Quiz</h2>
+    <div class="ai-form-card">
+      <div class="form-group">
+        <label class="form-label">Upload Presentation (.ppt, .pptx)</label>
+        <div class="file-upload-wrapper" id="pptDropArea" onclick="document.getElementById('pptFile').click()">
+          <div class="file-upload-icon">
+             <img src="{{ url_for('static', filename='ppt_icon.jpeg') }}" alt="PPT" style="height:40px;">
+          </div>
+          <p id="pptFileNameDisplay">Click to select or drag and drop your PPT/PPTX here</p>
+          <input type="file" id="pptFile" accept=".ppt,.pptx" class="hidden" onchange="updatePPTFileName()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Quiz Name</label>
+          <input id="pptTitle" type="text" class="form-input" placeholder="e.g. Lecture 5 Slides Quiz">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Subject</label>
+          <input id="pptSubject" type="text" class="form-input" placeholder="e.g. Marketing, Physics">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select id="pptType" class="form-select">
+            <option value="MCQ">MCQ</option>
+            <option value="Rapid Fire">Rapid Fire</option>
+            <option value="Fill in the Blank">Fill in the Blank</option>
+            <option value="Coding">Coding</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Questions</label>
+          <input id="pptCount" type="number" class="form-input" value="5" min="1" max="20">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Difficulty</label>
+          <select id="pptDifficulty" class="form-select">
+            <option value="Easy">Easy</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Class</label>
+          <select id="pptClass" class="form-select">
+            <option value="All">All Classes</option>
+            <option value="AIML DA-A">AIML DA-A</option>
+            <option value="AIML DA-B">AIML DA-B</option>
+            <option value="GENAI-A">GENAI-A</option>
+            <option value="GENAI-B">GENAI-B</option>
+            <option value="CYBER">CYBER</option>
+          </select>
+        </div>
+      </div>
+      <!-- Quiz Settings -->
+      <div class="settings-group" style="margin-top: 16px;">
+        <div class="settings-title">⚙️ Quiz Settings</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">🔒 Max Attempts <span class="label-hint">(0 = unlimited)</span></label>
+            <input type="number" id="pptMaxAttempts" class="form-input" value="0" min="0" max="100">
+          </div>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 8px; justify-content: center; padding-top: 10px;">
+            <label class="checkbox-label">
+              <input type="checkbox" id="pptShuffleQ"> 🔀 Shuffle Questions
+            </label>
+            <label class="checkbox-label">
+              <input type="checkbox" id="pptShuffleOpt"> 🔀 Shuffle Options
+            </label>
+            <label class="checkbox-label" style="color: #ef4444; font-weight: 600;">
+              <input type="checkbox" id="pptRapidFire"> ⏱️ Rapid Fire (10s/Q)
+            </label>
+          </div>
+        </div>
+      </div>
+      <button type="button" class="btn btn-primary btn-generate" id="pptGenerateBtn" onclick="generatePPTQuiz()">⚡ Analyze Slides & Generate</button>
+      <div id="pptLoading" class="ai-loading hidden"><div class="spinner"></div><p>AI is scanning your slides...</p></div>
+    </div>
+  </div>
+
+  <!-- EXAM CREATOR SECTION -->
+  <div id="examSection" class="quiz-section hidden">
+    <button class="btn-back" onclick="showMode('none')">← Back to options</button>
+    <h2 class="section-heading">🎓 Full Exam Paper Generator</h2>
+    
+    <div class="ai-form-card">
+      <div class="form-group">
+        <label class="form-label">Upload Reference Material (PDF/PPTX)</label>
+        <div class="file-upload-wrapper" id="examDropArea" onclick="document.getElementById('examFile').click()">
+          <div class="file-upload-icon">📄</div>
+          <p id="examFileNameDisplay">Select or drop the material to generate from</p>
+          <input type="file" id="examFile" accept=".pdf,.ppt,.pptx" class="hidden" onchange="updateExamFileName()">
+        </div>
+      </div>
+
+      <div class="settings-group" style="margin-top: 16px;">
+        <div class="settings-title">🏢 Header Details</div>
+        <div class="form-group" style="margin-bottom: 16px;">
+          <label class="form-label">Institution Name</label>
+          <input type="text" id="examInst" class="form-input" placeholder="e.g. Harvard University">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Degree / Course</label>
+            <input type="text" id="examDegree" class="form-input" placeholder="e.g. B.Tech Computer Science">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Exam Title</label>
+            <input type="text" id="examTitle" class="form-input" placeholder="e.g. Final Term Examination">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Subject Code & Name</label>
+            <input type="text" id="examSub" class="form-input" placeholder="e.g. CS101 - Operating Systems">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="date" id="examDate" class="form-input">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Time Allowed</label>
+            <input type="text" id="examTime" class="form-input" placeholder="e.g. 3 Hours">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Total Marks</label>
+            <input type="number" id="examTotalMarks" class="form-input" placeholder="e.g. 100">
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group" style="margin-top: 24px;">
+        <div class="settings-title" style="display: flex; justify-content: space-between; align-items: center;">
+          <span>📝 Exam Sections</span>
+          <button type="button" class="btn btn-sm btn-add" onclick="addExamSection()" style="padding: 6px 12px; font-size: 13px;">+ Add Section</button>
+        </div>
+        <div id="examSectionsContainer">
+          <!-- Dynamic sections will be added here -->
+        </div>
+      </div>
+
+      <!-- Primary: generate both at once -->
+      <div style="margin-top:24px;">
+        <button type="button" class="btn btn-primary btn-generate" id="examBothBtn"
+                onclick="generateBothDocs()"
+                style="width:100%; font-size:15px; padding:14px;">
+          📦 Generate Both — Question Paper &amp; Answer Key (.zip)
+        </button>
+      </div>
+      <!-- Individual buttons -->
+      <div class="btn-row" style="margin-top:10px; gap:10px;">
+        <button type="button" class="btn btn-generate" id="examPaperBtn"
+                onclick="generateExamPaper('paper')"
+                style="flex:1; border:1px solid var(--border); background:var(--bg-card2); color:var(--text-primary); font-size:13px;">
+          📄 Question Paper only (.docx)
+        </button>
+        <button type="button" class="btn btn-generate" id="examKeyBtn"
+                onclick="generateExamPaper('key')"
+                style="flex:1; border:1px solid var(--border); background:var(--bg-card2); color:var(--text-primary); font-size:13px;">
+          🔑 Answer Key only (.docx)
+        </button>
+      </div>
+      <div id="examLoading" class="ai-loading hidden">
+        <div class="spinner"></div>
+        <p>AI is structuring your exam and generating files...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI PREVIEW -->
+  <div id="aiPreview" class="hidden">
+    <h2 class="section-heading" style="margin-top: 30px;">📋 Generated Quiz Preview</h2>
+    <div id="aiPreviewContent"></div>
+    <div class="btn-row">
+      <button type="button" class="btn btn-add" onclick="generateAIQuiz()">🔄 Regenerate</button>
+      <button type="button" class="btn btn-primary btn-submit" onclick="submitAIQuiz()">🚀 Submit Quiz</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXISTING QUIZZES -->
+{% if quizzes %}
+<div id="existingQuizzes" class="existing-section">
+  <h2 class="section-heading">📚 Your Quizzes & Analytics</h2>
+  {% for q in quizzes %}
+  <div class="quiz-card" style="position: relative;">
+    <div class="quiz-card-header">
+      <span class="quiz-card-title">{{ q.title }}</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span class="badge-type">{{ q.type }}</span>
+        <span class="badge-class" style="margin-left: 0;">{{ q.class }}</span>
+        <a href="/export-csv/{{ q.id }}" class="btn btn-sm" style="text-decoration:none;font-size:12px;padding:5px 12px;background:rgba(74,222,128,0.1);color:#4ade80;border:1px solid rgba(74,222,128,0.3);">⬇️ Export</a>
+      </div>
+    </div>
+    
+    <div style="display: flex; gap: 20px; align-items: stretch; margin-top: 12px; margin-bottom: 4px; flex-wrap: wrap;">
+      <div style="flex: 1; border-right: 1px solid var(--border); padding-right: 15px; min-width: 200px;">
+        <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 8px 0;">{{ q.questions|length }} question(s) · {{ q.subject or 'General' }}{% if q.max_attempts %} · Max {{ q.max_attempts }} attempt(s){% endif %}{% if q.shuffle_questions %} · 🔀 Shuffled{% endif %}{% if q.rapid_fire %} <span style="color:#ef4444; font-weight:bold;">· ⏱️ Rapid Fire</span>{% endif %}</p>
+        {% if q.open_at or q.close_at %}
+        <p style="font-size: 12px; color: #f59e0b; margin: 0 0 8px 0;">
+          {% if q.open_at %}📅 Opens: {{ q.open_at.replace('T',' ') }}{% endif %}
+          {% if q.close_at %} · Closes: {{ q.close_at.replace('T',' ') }}{% endif %}
+        </p>
+        {% endif %}
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 15px;">
+          <a href="/quiz/{{ q.id }}" class="btn btn-secondary btn-sm" style="text-decoration:none;font-size:12px;padding:5px 10px;">👁️ Preview</a>
+          <a href="/edit_quiz/{{ q.id }}" class="btn btn-sm" style="text-decoration:none;font-size:12px;padding:5px 10px;background:rgba(99,102,241,0.1);color:#818cf8;border:1px solid rgba(99,102,241,0.3);">✏️ Edit</a>
+          <a href="/delete_quiz/{{ q.id }}" class="btn btn-sm" style="text-decoration:none;font-size:12px;padding:5px 10px;background:rgba(248,113,113,0.1);color:#f87171;border:1px solid rgba(248,113,113,0.2);" onclick="return confirm('Delete this quiz and all its results?')">🗑️ Delete</a>
+        </div>
+      </div>
+      
+      <!-- Analytics Section -->
+      <div style="flex: 1; display: flex; flex-direction: column; justify-content: center; min-width: 200px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div style="background: var(--bg-card2); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Avg Score</div>
+            <div style="font-weight: 800; font-size: 18px; color: {{ '#4ade80' if q.avg_score >= 70 else '#f59e0b' if q.avg_score >= 40 else '#ef4444' }};">{{ q.avg_score }}%</div>
+          </div>
+          <div style="background: var(--bg-card2); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+            <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Total Attempts</div>
+            <div style="font-weight: 800; font-size: 18px; color: var(--text-primary);">{{ q.attempts_count }}</div>
+          </div>
+        </div>
+        <div style="margin-top: 10px; font-size: 13px; color: var(--text-secondary);">
+          🏆 Top Performer: <strong style="color: var(--text-primary);">{{ q.top_performer }}</strong>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Export Button -->
+
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- STUDENT ROSTER & ACTIVITY TRACKING -->
+<div id="rosterSection" class="existing-section" style="margin-top: 40px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+    <h2 class="section-heading" style="margin:0;">👥 Student Roster & Activity Tracking</h2>
+    <select id="rosterClassFilter" class="form-select" style="width: auto; padding: 6px 12px; font-size: 13px;" onchange="filterRoster()">
+      <option value="All">All Classes</option>
+      <option value="AIML DA-A">AIML DA-A</option>
+      <option value="AIML DA-B">AIML DA-B</option>
+      <option value="GENAI-A">GENAI-A</option>
+      <option value="GENAI-B">GENAI-B</option>
+      <option value="CYBER">CYBER</option>
+    </select>
+  </div>
+
+  <div class="quiz-card" style="padding: 0; overflow: hidden;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Student</th>
+          <th>KU ID</th>
+          <th>Class</th>
+          <th>Overall Average</th>
+          <th>Quizzes Taken</th>
+          <th>Missed Quizzes</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="rosterTableBody">
+        {% if roster %}
+        {% for s in roster %}
+        <tr class="roster-row" data-class="{{ s.class }}">
+          <td>
+            <div style="font-weight:600; color:var(--text-primary);">{{ s.name }}</div>
+          </td>
+          <td style="color:var(--text-muted); font-size:13px;">{{ s.ku_id }}</td>
+          <td><span class="badge-class" style="font-size:11px;">{{ s.class }}</span></td>
+          <td>
+            <span style="font-weight:700; color:{{ '#4ade80' if s.avg_score >= 70 else '#f59e0b' if s.avg_score >= 40 else '#ef4444' }};">
+              {{ s.avg_score }}%
+            </span>
+          </td>
+          <td><strong style="color:var(--accent);">{{ s.total_taken }}</strong></td>
+          <td>
+            <span style="{{ 'color:#ef4444; font-weight:bold;' if s.missed > 0 else 'color:#4ade80;' }}">
+              {{ s.missed }}
+            </span>
+          </td>
+          <td>
+            {% if s.avg_score < 40 and s.total_taken > 0 %}
+              <span style="background:rgba(239,68,68,0.15); color:#ef4444; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap;">⚠️ Needs Help</span>
+            {% elif s.missed > 2 %}
+              <span style="background:rgba(245,158,11,0.15); color:#f59e0b; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap;">📉 Falling Behind</span>
+            {% elif s.avg_score >= 80 %}
+              <span style="background:rgba(74,222,128,0.15); color:#4ade80; padding:3px 8px; border-radius:4px; font-size:11px; font-weight:700; white-space:nowrap;">🌟 Excellent</span>
+            {% else %}
+              <span style="color:var(--text-muted); font-size: 12px; white-space:nowrap;">On Track</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        {% else %}
+        <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary);">No active students found.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<!-- ✍️ STUDENT ANSWER CHECK REPORTS -->
+<div style="margin-top:40px;" id="answerReportsSection">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+    <div>
+      <h2 class="section-heading" style="margin:0;">&#x270D;&#xFE0F; Student Answer Check Reports</h2>
+      <p style="color:var(--text-muted); font-size:13px; margin-top:4px;">AI-graded submissions — review, edit marks, and approve final grades</p>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <select id="reportClassFilter" class="form-select" style="width:auto; padding:6px 12px; font-size:13px;" onchange="filterReports()">
+        <option value="All">All Classes</option>
+        <option value="AIML DA-A">AIML DA-A</option>
+        <option value="AIML DA-B">AIML DA-B</option>
+        <option value="GENAI-A">GENAI-A</option>
+        <option value="GENAI-B">GENAI-B</option>
+        <option value="CYBER">CYBER</option>
+      </select>
+      <select id="reportStatusFilter" class="form-select" style="width:auto; padding:6px 12px; font-size:13px;" onchange="filterReports()">
+        <option value="All">All Status</option>
+        <option value="pending">⏳ Pending</option>
+        <option value="approved">✅ Approved</option>
+      </select>
+      <input type="text" id="reportSearch" class="form-input" placeholder="Search student or exam..."
+             oninput="filterReports()" style="width:200px; padding:7px 12px; font-size:13px;">
+    </div>
+  </div>
+
+  {% if answer_reports %}
+  <div class="quiz-card" style="padding:0; overflow:hidden;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Student</th><th>Class</th><th>Exam / Subject</th>
+          <th>AI Score</th><th>Grade</th><th>Status</th><th>Submitted</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="reportTableBody">
+        {% for r in answer_reports %}
+        {% set pct = ((r.scored / r.total_marks) * 100) | round(1) %}
+        {% set grade = 'A+' if pct>=90 else 'A' if pct>=80 else 'B' if pct>=70 else 'C' if pct>=60 else 'D' if pct>=40 else 'F' %}
+        {% set gc   = '#10b981' if pct>=70 else '#f59e0b' if pct>=40 else '#ef4444' %}
+        {% set perf = 'Outstanding' if pct>=85 else 'Good' if pct>=70 else 'Satisfactory' if pct>=55 else 'Needs Improvement' if pct>=40 else 'Poor' %}
+
+        <!-- Summary row -->
+        <tr class="report-row" id="row-{{ r.id }}"
+            data-class="{{ r.student_class }}" data-status="{{ r.status }}"
+            data-search="{{ r.student_name|lower }} {{ r.exam_name|lower }}"
+            style="cursor:pointer;" onclick="toggleDetail('rd-{{ r.id }}', this)">
+          <td>
+            <div style="font-weight:600;">{{ r.student_name }}</div>
+            <div style="font-size:11px; color:var(--text-muted);">{{ r.student_id }}</div>
+          </td>
+          <td><span class="badge-class" style="font-size:11px;">{{ r.student_class }}</span></td>
+          <td>
+            <div style="font-weight:500;">{{ r.exam_name }}</div>
+            <div style="font-size:11px; color:var(--text-muted);">{{ r.subject }}</div>
+          </td>
+          <td style="font-weight:700; color:{{ gc }};" id="score-display-{{ r.id }}">{{ r.scored }} / {{ r.total_marks }}</td>
+          <td>
+            <span style="font-weight:700; padding:3px 10px; border-radius:8px; font-size:12px;
+              background:{{ 'rgba(16,185,129,0.12)' if pct>=70 else 'rgba(245,158,11,0.12)' if pct>=40 else 'rgba(239,68,68,0.12)' }};
+              color:{{ gc }};" id="grade-display-{{ r.id }}">{{ grade }} {{ pct }}%</span>
+          </td>
+          <td id="status-cell-{{ r.id }}">
+            {% if r.status == 'approved' %}
+            <span style="background:rgba(16,185,129,0.12); color:#10b981; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700; white-space:nowrap;">&#x2705; Approved</span>
+            {% else %}
+            <span style="background:rgba(245,158,11,0.12); color:#f59e0b; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700; white-space:nowrap;">&#x23F3; Pending</span>
+            {% endif %}
+          </td>
+          <td style="font-size:12px; color:var(--text-muted);">{{ r.submitted_at }}</td>
+          <td onclick="event.stopPropagation()">
+            <form method="POST" action="/delete-answer-report/{{ r.id }}"
+                  onsubmit="return confirm('Delete this report and its PDF?')" style="display:inline;">
+              <button type="submit" title="Delete"
+                      style="background:rgba(239,68,68,0.1); color:#ef4444; border:none; border-radius:6px; width:28px; height:28px; cursor:pointer; font-size:13px;">&#x1F5D1;</button>
+            </form>
+          </td>
+        </tr>
+
+        <!-- Expandable detail + edit panel -->
+        <tr id="rd-{{ r.id }}" style="display:none;">
+          <td colspan="8" style="padding:0; background:var(--bg-body);">
+            <div style="padding:24px 28px;" id="panel-{{ r.id }}">
+
+              <!-- Top action bar -->
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+                <div style="font-weight:700; font-size:15px;">Editing: {{ r.student_name }} — {{ r.exam_name }}</div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                  {% if r.get('pdf_url') %}
+                  <a href="{{ r.pdf_url }}" target="_blank"
+                     style="padding:8px 16px; background:rgba(99,102,241,0.12); color:var(--accent); border:1px solid rgba(99,102,241,0.3); border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; gap:6px;">
+                    &#x1F4C4; View PDF
+                  </a>
+                  {% endif %}
+                  {% if r.status != 'approved' %}
+                  <button onclick="approveReport('{{ r.id }}')" id="approve-btn-{{ r.id }}"
+                          style="padding:8px 16px; background:rgba(16,185,129,0.12); color:#10b981; border:1px solid rgba(16,185,129,0.3); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                    &#x2714; Approve &amp; Finalise
+                  </button>
+                  {% else %}
+                  <span style="padding:8px 16px; background:rgba(16,185,129,0.12); color:#10b981; border-radius:8px; font-size:13px; font-weight:600;">
+                    &#x2705; Approved by {{ r.get('approved_by','Mentor') }} on {{ r.get('approved_at','') }}
+                  </span>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Score strip -->
+              <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; margin-bottom:20px;">
+                <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+                  <div style="font-size:22px; font-weight:800; color:{{ gc }};" id="scored-strip-{{ r.id }}">{{ r.scored }} / {{ r.total_marks }}</div>
+                  <div style="font-size:11px; color:var(--text-muted); margin-top:3px; text-transform:uppercase; letter-spacing:.6px;">Score</div>
+                </div>
+                <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+                  <div style="font-size:22px; font-weight:800; color:{{ gc }};" id="pct-strip-{{ r.id }}">{{ pct }}%</div>
+                  <div style="font-size:11px; color:var(--text-muted); margin-top:3px; text-transform:uppercase; letter-spacing:.6px;">Accuracy</div>
+                </div>
+                <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+                  <div style="font-size:22px; font-weight:800; color:{{ gc }};" id="grade-strip-{{ r.id }}">{{ grade }}</div>
+                  <div style="font-size:11px; color:var(--text-muted); margin-top:3px; text-transform:uppercase; letter-spacing:.6px;">Grade</div>
+                </div>
+                <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+                  <div style="font-size:14px; font-weight:700; color:var(--text-primary);">{{ perf }}</div>
+                  <div style="font-size:11px; color:var(--text-muted); margin-top:3px; text-transform:uppercase; letter-spacing:.6px;">Performance</div>
+                </div>
+              </div>
+
+              <!-- Per-question editable cards -->
+              <div style="font-weight:700; font-size:14px; margin-bottom:12px; color:var(--text-primary);">&#x270F;&#xFE0F; Questions — Edit Marks &amp; Feedback</div>
+              {% for q in r.result.questions %}
+              {% set qp = ((q.earned_marks / q.max_marks)*100)|round(0)|int if q.max_marks > 0 else 0 %}
+              {% set bclr = 'rgba(74,222,128,0.35)' if qp>=100 else 'rgba(245,158,11,0.35)' if qp>0 else 'rgba(239,68,68,0.3)' %}
+              {% set qic = '&#x2705;' if qp>=100 else '&#x26A1;' if qp>0 else '&#x274C;' %}
+              <div style="background:var(--bg-card); border:1px solid {{ bclr }}; border-radius:10px; margin-bottom:12px; overflow:hidden;" id="qcard-{{ r.id }}-{{ loop.index0 }}">
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:8px;">
+                  <span style="font-weight:600; font-size:13.5px;">{{ qic }} {{ q.question_text }}</span>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <label style="font-size:12px; color:var(--text-muted);">Marks:</label>
+                    <input type="number" step="0.5" min="0" max="{{ q.max_marks }}"
+                           value="{{ q.earned_marks }}"
+                           id="marks-{{ r.id }}-{{ loop.index0 }}"
+                           onchange="recalcTotal('{{ r.id }}')"
+                           style="width:70px; background:var(--bg-card2); border:1px solid var(--border); border-radius:8px; padding:4px 8px; color:var(--text-primary); font-size:13px; font-weight:700; text-align:center;">
+                    <span style="font-size:13px; color:var(--text-muted);">/ {{ q.max_marks }}</span>
+                  </div>
+                </div>
+                <div style="padding:12px 16px; font-size:13px;">
+                  {% if q.holistic_verdict %}
+                  <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin-bottom:4px;">AI Verdict (editable)</div>
+                  <textarea id="verdict-{{ r.id }}-{{ loop.index0 }}"
+                            style="width:100%; background:var(--bg-card2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--accent-light); font-style:italic; font-size:13px; resize:vertical; min-height:60px; font-family:inherit;">{{ q.holistic_verdict }}</textarea>
+                  {% endif %}
+                  {% if q.student_answer %}
+                  <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-muted); margin:8px 0 4px;">Student Wrote</div>
+                  <div style="color:var(--text-secondary); background:var(--bg-card2); padding:8px 12px; border-radius:7px; margin-bottom:8px; line-height:1.6;">{{ q.student_answer }}</div>
+                  {% endif %}
+                  {% if q.correct_points %}
+                  <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#4ade80; margin-bottom:4px;">&#x2705; Correct Points</div>
+                  {% for p in q.correct_points %}<div style="color:var(--text-secondary); padding:2px 0 2px 10px; border-left:2px solid rgba(74,222,128,0.4); margin-bottom:3px; line-height:1.5; font-size:12.5px;">{{ p }}</div>{% endfor %}
+                  {% endif %}
+                  {% if q.gaps %}
+                  <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:#ef4444; margin:8px 0 4px;">&#x2702; Why Marks Cut</div>
+                  {% for g in q.gaps %}<div style="color:var(--text-secondary); padding:2px 0 2px 10px; border-left:2px solid rgba(239,68,68,0.4); margin-bottom:3px; line-height:1.5; font-size:12.5px;">{{ g }}</div>{% endfor %}
+                  {% endif %}
+                  {% if q.suggestion %}
+                  <div style="color:#f59e0b; margin-top:8px; background:rgba(245,158,11,0.07); padding:7px 10px; border-radius:7px; font-size:12.5px; line-height:1.5;">&#x1F4A1; {{ q.suggestion }}</div>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+
+              <!-- Overall feedback edit -->
+              <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:12px;">
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--accent); margin-bottom:8px;">&#x1F4DD; Overall Assessment (editable)</div>
+                <textarea id="overall-{{ r.id }}" rows="3"
+                          style="width:100%; background:var(--bg-card2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text-primary); font-size:13px; resize:vertical; font-family:inherit;">{{ r.result.overall_feedback }}</textarea>
+              </div>
+
+              <!-- Mentor note -->
+              <div style="background:var(--bg-card); border:1px solid rgba(99,102,241,0.25); border-radius:10px; padding:16px; margin-bottom:16px;">
+                <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--accent); margin-bottom:8px;">&#x1F4AC; Mentor Note to Student (optional)</div>
+                <textarea id="note-{{ r.id }}" rows="2"
+                          style="width:100%; background:var(--bg-card2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text-primary); font-size:13px; resize:vertical; font-family:inherit;"
+                          placeholder="e.g. Good attempt overall. Review A* algorithm application for the final exam.">{{ r.get('mentor_note', '') }}</textarea>
+              </div>
+
+              <!-- Live total display -->
+              <div style="display:flex; align-items:center; gap:16px; margin-bottom:16px; padding:12px 16px; background:var(--bg-card2); border-radius:10px; border:1px solid var(--border); flex-wrap:wrap;">
+                <span style="font-size:14px; color:var(--text-secondary);">Edited Total:</span>
+                <span style="font-size:20px; font-weight:800; color:var(--accent);" id="live-total-{{ r.id }}">{{ r.scored }}</span>
+                <span style="font-size:14px; color:var(--text-muted);">/ {{ r.total_marks }}</span>
+                <button onclick="saveEdits('{{ r.id }}', {{ r.total_marks }})"
+                        style="margin-left:auto; padding:9px 20px; background:linear-gradient(135deg,var(--accent),var(--purple)); color:white; border:none; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                  &#x1F4BE; Save Changes
+                </button>
+                <span id="save-status-{{ r.id }}" style="font-size:12px; color:#10b981; display:none;">&#x2714; Saved!</span>
+              </div>
+
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="quiz-card" style="text-align:center; padding:50px;">
+    <div style="font-size:40px; margin-bottom:12px;">&#x1F4ED;</div>
+    <p style="color:var(--text-secondary); font-size:16px; margin-bottom:6px;">No answer check reports yet.</p>
+    <p style="color:var(--text-muted); font-size:13px;">Students submit handwritten PDFs via <strong>Answer Checker</strong> on their dashboard.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- End of Exam Generator -->
+
+<script>
+// ===== SCROLL TO REPORTS =====
+function scrollToReports() {
+  var el = document.getElementById('answerReportsSection') ||
+           document.querySelector('[id*="answer"], [id*="Answer"], h2');
+  // Find the Answer Reports heading
+  var headings = document.querySelectorAll('h2');
+  var target = null;
+  headings.forEach(function(h) {
+    if (h.textContent.includes('Answer Check')) target = h;
+  });
+  if (target) {
+    target.closest('div').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  }
+}
+
+// ===== ANSWER REPORTS =====
+function toggleDetail(id, row) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'table-row';
+  row.style.background = isOpen ? '' : 'rgba(99,102,241,0.06)';
+}
+
+function filterReports() {
+  var cls    = document.getElementById('reportClassFilter').value;
+  var status = document.getElementById('reportStatusFilter').value;
+  var search = (document.getElementById('reportSearch').value || '').toLowerCase();
+  document.querySelectorAll('.report-row').forEach(function(row) {
+    var show = (cls === 'All' || row.dataset.class === cls) &&
+               (status === 'All' || row.dataset.status === status) &&
+               (!search || (row.dataset.search||'').includes(search));
+    row.style.display = show ? '' : 'none';
+    if (!show) {
+      var m = (row.getAttribute('onclick')||'').match(/'([^']+)'/);
+      if (m) { var d = document.getElementById(m[1]); if (d) d.style.display = 'none'; }
+    }
+  });
+}
+
+function recalcTotal(rid) {
+  var inputs = document.querySelectorAll('[id^="marks-'+rid+'-"]');
+  var total = 0;
+  inputs.forEach(function(inp) { total += parseFloat(inp.value) || 0; });
+  var el = document.getElementById('live-total-'+rid);
+  if (el) el.textContent = Math.round(total * 10) / 10;
+}
+
+async function saveEdits(rid, maxMarks) {
+  var questions = [];
+  var i = 0;
+  while (document.getElementById('marks-'+rid+'-'+i)) {
+    var earned = parseFloat(document.getElementById('marks-'+rid+'-'+i).value) || 0;
+    var verdictEl = document.getElementById('verdict-'+rid+'-'+i);
+    questions.push({
+      earned_marks: earned,
+      holistic_verdict: verdictEl ? verdictEl.value : undefined
+    });
+    i++;
+  }
+  var overall  = (document.getElementById('overall-'+rid)||{}).value || '';
+  var noteEl   = document.getElementById('note-'+rid);
+  var noteVal  = noteEl ? noteEl.value : '';
+
+  try {
+    var res = await fetch('/edit-answer-report/'+rid, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ questions: questions, overall_feedback: overall, mentor_note: noteVal })
+    });
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Save failed');
+
+    // Update score displays
+    var scored = data.scored;
+    var pct    = maxMarks > 0 ? Math.round(scored / maxMarks * 100) : 0;
+    var grades = [[90,'A+'],[80,'A'],[70,'B'],[60,'C'],[40,'D'],[0,'F']];
+    var grade  = grades.find(function(g){ return pct >= g[0]; })[1];
+    var gc     = pct>=70?'#10b981':pct>=40?'#f59e0b':'#ef4444';
+
+    var stripEl = document.getElementById('scored-strip-'+rid);
+    if (stripEl) { stripEl.textContent = scored + ' / ' + maxMarks; stripEl.style.color = gc; }
+    var pctEl = document.getElementById('pct-strip-'+rid);
+    if (pctEl) { pctEl.textContent = pct + '%'; pctEl.style.color = gc; }
+    var gradeEl = document.getElementById('grade-strip-'+rid);
+    if (gradeEl) { gradeEl.textContent = grade; gradeEl.style.color = gc; }
+    var dispEl = document.getElementById('score-display-'+rid);
+    if (dispEl) { dispEl.textContent = scored + ' / ' + maxMarks; dispEl.style.color = gc; }
+    var gradDisp = document.getElementById('grade-display-'+rid);
+    if (gradDisp) { gradDisp.textContent = grade + ' ' + pct + '%'; gradDisp.style.color = gc; }
+
+    var ss = document.getElementById('save-status-'+rid);
+    if (ss) { ss.style.display = 'inline'; setTimeout(function(){ ss.style.display = 'none'; }, 2500); }
+  } catch(err) {
+    alert('Save failed: ' + err.message);
+  }
+}
+
+async function approveReport(rid) {
+  if (!confirm('Approve this report? The student will see it as final.')) return;
+  try {
+    var res = await fetch('/approve-answer-report/'+rid, { method: 'POST' });
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Approval failed');
+    // Update status cell and button
+    var cell = document.getElementById('status-cell-'+rid);
+    if (cell) cell.innerHTML = '<span style="background:rgba(16,185,129,0.12);color:#10b981;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap;">&#x2705; Approved</span>';
+    var btn = document.getElementById('approve-btn-'+rid);
+    if (btn) { btn.textContent = '✅ Approved'; btn.disabled = true; btn.style.opacity = '0.6'; }
+    var row = document.getElementById('row-'+rid);
+    if (row) row.dataset.status = 'approved';
+  } catch(err) {
+    alert('Approval failed: ' + err.message);
+  }
+}
+
+function toggleDetail(id, row) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var isOpen = el.style.display !== 'none';
+  el.style.display = isOpen ? 'none' : 'table-row';
+  row.style.background = isOpen ? '' : 'rgba(99,102,241,0.06)';
+}
+function filterReports() {
+  var cls    = document.getElementById('reportClassFilter').value;
+  var search = (document.getElementById('reportSearch').value || '').toLowerCase();
+  document.querySelectorAll('.report-row').forEach(function(row) {
+    var show = (cls === 'All' || row.dataset.class === cls) &&
+               (!search || (row.dataset.search || '').includes(search));
+    row.style.display = show ? '' : 'none';
+    if (!show) {
+      var m = (row.getAttribute('onclick') || '').match(/'([^']+)'/);
+      if (m) { var d = document.getElementById(m[1]); if (d) d.style.display = 'none'; }
+    }
+  });
+}
+
+// ===== THEME =====
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light-mode');
+  document.getElementById('themeToggle').textContent = isLight ? '☀️' : '🌙';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+}
+if (localStorage.getItem('theme') === 'light') {
+  document.documentElement.classList.add('light-mode');
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = '☀️';
+  });
+}
+// ===== ROSTER FILTER =====
+function filterRoster() {
+  const selectedClass = document.getElementById('rosterClassFilter').value;
+  const rows = document.querySelectorAll('.roster-row');
+  let visibleCount = 0;
+  
+  rows.forEach(row => {
+    const rowClass = row.getAttribute('data-class');
+    if (selectedClass === 'All' || rowClass === selectedClass) {
+      row.style.display = '';
+      visibleCount++;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+  
+  // Handle empty state
+  let emptyRow = document.getElementById('rosterEmptyRow');
+  if (visibleCount === 0) {
+    if (!emptyRow) {
+      const tbody = document.getElementById('rosterTableBody');
+      emptyRow = document.createElement('tr');
+      emptyRow.id = 'rosterEmptyRow';
+      emptyRow.innerHTML = '<td colspan="7" style="text-align:center;padding:40px;color:var(--text-secondary);">No students found for this class.</td>';
+      tbody.appendChild(emptyRow);
+    }
+    emptyRow.style.display = '';
+  } else if (emptyRow) {
+    emptyRow.style.display = 'none';
+  }
+}
+</script>
+{% endblock %}
