@@ -20,7 +20,6 @@ COPY --chown=user requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Pre-download EasyOCR models so first request isn't 60+ seconds
 # Pre-download all models so first user request isn't slow
 RUN python -c "import easyocr; easyocr.Reader(['en'], gpu=False)"
 RUN python -m spacy download en_core_web_sm
@@ -29,9 +28,9 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 # Copy app code
 COPY --chown=user . .
 
-# Ensure the user can write to the app dir for data.json, uploads, etc.
+# Ensure the user can write to the app dir, and seed data.json with valid JSON
 RUN mkdir -p /app/static/answer_pdfs /app/static/generated && \
-    touch /app/data.json && \
+    echo '{}' > /app/data.json && \
     chown -R user:user /app
 
 # Switch to non-root user
