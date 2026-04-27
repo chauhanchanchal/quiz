@@ -21,7 +21,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Pre-download EasyOCR models so first request isn't 60+ seconds
+# Pre-download all models so first user request isn't slow
 RUN python -c "import easyocr; easyocr.Reader(['en'], gpu=False)"
+RUN python -m spacy download en_core_web_sm
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
 # Copy app code
 COPY --chown=user . .
