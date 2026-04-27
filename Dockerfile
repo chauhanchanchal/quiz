@@ -29,6 +29,11 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 # Copy app code
 COPY --chown=user . .
 
+# Ensure the user can write to the app dir for data.json, uploads, etc.
+RUN mkdir -p /app/static/answer_pdfs /app/static/generated && \
+    touch /app/data.json && \
+    chown -R user:user /app
+
 # Switch to non-root user
 USER user
 
