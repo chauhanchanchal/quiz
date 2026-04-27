@@ -30,7 +30,7 @@ COPY --chown=user . .
 
 # Ensure the user can write to the app dir, and seed data.json with valid JSON
 RUN mkdir -p /app/static/answer_pdfs /app/static/generated && \
-    echo '{}' > /app/data.json && \
+   echo '{"users":[]}' > /app/data.json && \
     chown -R user:user /app
 
 # Switch to non-root user
