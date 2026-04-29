@@ -61,8 +61,8 @@ def compute_badges(student_id, results):
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        ku_id = request.form["ku_id"]
-        password = request.form["password"]
+        ku_id = request.form["ku_id"].strip()
+        password = request.form["password"].strip()
         data = load_data()
         for user in data["users"]:
             if user["ku_id"] == ku_id and user["password"] == password:
@@ -668,7 +668,7 @@ def generate_from_pdf():
         return jsonify({"error": "PDF file is required."})
     pdf_file = request.files["pdf"]
     try:
-        pdf_reader = PyPDF2.PdfReader(io.BytesIO(pdf_file.read()))
+        pdf_reader = PyPDF2.PdfReader(io.BytesIO(pdf_file.read()), strict=False)
         text = "".join(page.extract_text() + "\n" for page in pdf_reader.pages)[:15000]
         prompt = f"Generate exactly {count} {quiz_type} questions from this PDF:\n\n{text}\n\n{get_format_instruction(quiz_type)}\n\nReturn ONLY raw JSON array."
         questions, error = call_groq_api(GROQ_API_KEY, prompt)
@@ -949,7 +949,8 @@ def generate_exam():
     try:
         content = ref_file.read()
         if ref_file.filename.lower().endswith(".pdf"):
-            pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(content), strict=False)
+
             extracted_pages = []
             for page in pdf_reader.pages:
                 t = page.extract_text()
@@ -1415,7 +1416,7 @@ def check_answers():
     # Step 1: For digital PDFs only, try PyPDF2 first
     if not is_image:
         try:
-            pdf_reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes), strict=False)
             quick_text = "".join((p.extract_text() or "") + "\n\n"
                                  for p in pdf_reader.pages).strip()
             if len(quick_text) > 100:
@@ -1674,7 +1675,8 @@ def generate_exam_both():
     try:
         content = ref_file.read()
         if ref_file.filename.lower().endswith(".pdf"):
-            pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(content), strict=False)
+
             text = "".join((p.extract_text() or "") + "\n" for p in pdf_reader.pages)[:20000]
         elif ref_file.filename.lower().endswith((".ppt", ".pptx")):
             prs = Presentation(io.BytesIO(content))
