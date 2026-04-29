@@ -12,7 +12,7 @@ from pdf2image import convert_from_path
 from PIL import Image
 import numpy as np
 
-POPPLER_PATH = r"C:\poppler\Library\bin"
+POPPLER_PATH = r"C:\poppler\Library\bin\pdftoppm.exe\poppler-25.12.0\Library\bin"
 LANGUAGES    = ["en"]
 USE_GPU      = True
 
