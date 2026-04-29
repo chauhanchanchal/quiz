@@ -23,7 +23,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # Cross-platform: explicit path on Windows, system default on Linux (HF Spaces)
 import platform
 if platform.system() == "Windows":
-    POPPLER_PATH = r"C:\poppler\Library\bin\pdftoppm.exe\poppler-25.12.0\Library\bin"
+    POPPLER_PATH = r"C:\poppler\Library\bin"
 else:
     POPPLER_PATH = ""
 MODEL_NAME = "gemini-flash-latest"

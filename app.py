@@ -18,15 +18,8 @@ except ImportError:
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "secret123")
 
-
-app.config["SESSION_COOKIE_SAMESITE"] = "None"
-app.config["SESSION_COOKIE_SECURE"] = True
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["PERMANENT_SESSION_LIFETIME"] = 60 * 60 * 24 * 7  # 7 days
-
-
 DATA_FILE = "data.json"
-print(f"[DBG] topic={actual_topic!r} type={sec_type!r}"); print(f"[DBG] q[0] keys: {list(questions[0].keys()) if questions else
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 # ---------- DATA ----------
 def load_data():
@@ -1408,71 +1401,59 @@ def check_answers():
 
     pdf_url = f"/static/answer_pdfs/{safe_name}"
 
-    # ── 3. Extract text (PDF or raw image) ──────────────────────────────────
-    ocr_method = "pypdf2"
+    # ── 3. Extract text (PDF or raw image) — Gemini Vision first, EasyOCR fallback ──
+    # Strategy:
+    #   1. For digital PDFs, try fast PyPDF2 path first
+    #   2. If little/no text, use Gemini Vision API (works on handwriting + full pages)
+    #   3. If Gemini fails (quota, network), fall back to EasyOCR (offline)
+    ocr_method = "unknown"
     extracted_text = ""
-    try:
-        if is_image:
-            # Raw photo — use TrOCR directly
-            try:
-                from PIL import Image as PILImage
-                from ocr_inference import load_ocr_model, ocr_image as _ocr_img
-                load_ocr_model()
-                img = PILImage.open(io.BytesIO(pdf_bytes)).convert("RGB")
 
-                # Split image into horizontal strips for better OCR
-                import numpy as np
-                w, h = img.size
-                gray = img.convert("L")
-                arr  = np.array(gray)
-                row_means = arr.mean(axis=1)
-                is_text_row = row_means < 230
-                lines = []
-                in_line = False
-                line_start = 0
-                padding = 10
-                for r, is_text in enumerate(is_text_row):
-                    if is_text and not in_line:
-                        in_line = True
-                        line_start = max(0, r - padding)
-                    elif not is_text and in_line:
-                        in_line = False
-                        line_end = min(h, r + padding)
-                        if line_end - line_start > 8:
-                            crop = img.crop((0, line_start, w, line_end))
-                            lines.append(crop)
+    # Save the file to disk so OCR modules can read by path
+    # (We already saved pdf_bytes to pdf_path above as part of the upload)
 
-                if in_line:
-                    lines.append(img.crop((0, line_start, w, h)))
-
-                if not lines:
-                    lines = [img]
-
-                print(f"  OCR: {len(lines)} line(s) detected")
-                parts = []
-                for line in lines:
-                    t = _ocr_img(line).strip()
-                    if t:
-                        parts.append(t)
-                extracted_text = "\n".join(parts).strip()
-                ocr_method = "trocr_image"
-                print(f"  OCR extracted: {extracted_text[:100]}")
-            except Exception as e:
-                print(f"  TrOCR error: {e}")
-                return jsonify({"error": f"Could not read image with OCR. Error: {str(e)}"}), 400
-        else:
-            # PDF file — try PyPDF2 first
-            try:
-                pdf_reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
-                extracted_text = "".join((p.extract_text() or "") + "\n\n" for p in pdf_reader.pages).strip()
+    # Step 1: For digital PDFs only, try PyPDF2 first
+    if not is_image:
+        try:
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(pdf_bytes))
+            quick_text = "".join((p.extract_text() or "") + "\n\n"
+                                 for p in pdf_reader.pages).strip()
+            if len(quick_text) > 100:
+                extracted_text = quick_text
                 ocr_method = "pypdf2"
-            except Exception as e:
-                return jsonify({"error": f"PDF read error: {str(e)}"}), 500
-    except Exception as e:
-        return jsonify({"error": f"File read error: {str(e)}"}), 500
+                print(f"  PyPDF2 extracted {len(quick_text)} chars (digital PDF)")
+        except Exception as e:
+            print(f"  PyPDF2 failed (will try OCR): {e}")
 
+    # Step 2: If no usable text yet, try Gemini Vision
     if not extracted_text:
-        return jsonify({"error": "Could not extract text. For handwritten sheets: upload a clear photo (JPG/PNG) or scan with CamScanner and upload the PDF."}), 400
+        try:
+            from gemini_extract import extract_text as gemini_extract_text
+            extracted_text = gemini_extract_text(pdf_path)
+            ocr_method = "gemini"
+            print(f"  Gemini extracted {len(extracted_text)} chars")
+            print(f"  Preview: {extracted_text[:200]}")
+        except Exception as gemini_error:
+            print(f"  Gemini failed, falling back to EasyOCR: {gemini_error}")
+            try:
+                from ocr_extract import extract_text as ocr_extract_text
+                extracted_text = ocr_extract_text(pdf_path)
+                ocr_method = "easyocr_fallback"
+                print(f"  EasyOCR extracted {len(extracted_text)} chars")
+            except Exception as ocr_error:
+                print(f"  Both Gemini and EasyOCR failed: {ocr_error}")
+                return jsonify({
+                    "error": f"Could not read your file. Try a clearer photo/scan, "
+                             f"make sure handwriting is dark on a white background, "
+                             f"and avoid shadows or glare. (OCR error: {str(ocr_error)})"
+                }), 400
+
+    if not extracted_text.strip():
+        return jsonify({
+            "error": "No readable text found. Try a clearer photo/scan, "
+                     "make sure handwriting is dark on a white background, "
+                     "and avoid shadows or glare."
+        }), 400
 
     # ── 4. Pre-NLP: run sentence-transformer similarity if context provided ───
     #    We compare the full student text against the exam context/questions
@@ -1780,7 +1761,7 @@ def generate_exam_both():
         if questions:
             exam_data.append({"name": sec_name, "type": sec_type,
                                "marks": sec_marks, "questions": questions})
-            print(f"[DBG] topic={actual_topic!r} type={sec_type!r}"); print(f"[DBG] q[0] keys: {list(questions[0].keys()) if questions else
+            print(f"[EXAM BOTH] Section '{sec_name}' OK: {len(questions)} questions")
         else:
             print(f"[EXAM BOTH] Section '{sec_name}' failed: {last_error2}")
         
