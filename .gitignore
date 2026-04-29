@@ -11,7 +11,7 @@ google-vision-key.json
 *_backup*.py
 app_OLD*.py
 ocr_model/
-data.json
+# data.json
 static/answer_pdfs/
 static/generated/
 test.zip
